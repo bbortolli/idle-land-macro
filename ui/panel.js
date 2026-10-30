@@ -211,14 +211,21 @@
     const wireAutopot = (panel) => {
         panel.querySelector('#autopot-enabled').addEventListener('change', event => {
             state.autopot.enabled = event.target.checked;
+            core.saveSettings();
         });
         panel.querySelector('#autopot-hp-thr').addEventListener('input', event => {
             const value = parseInt(event.target.value, 10);
-            if (!Number.isNaN(value) && value >= 0) state.autopot.hpThreshold = value;
+            if (!Number.isNaN(value) && value >= 0) {
+                state.autopot.hpThreshold = value;
+                core.saveSettings();
+            }
         });
         panel.querySelector('#autopot-sp-thr').addEventListener('input', event => {
             const value = parseInt(event.target.value, 10);
-            if (!Number.isNaN(value) && value >= 0) state.autopot.spThreshold = value;
+            if (!Number.isNaN(value) && value >= 0) {
+                state.autopot.spThreshold = value;
+                core.saveSettings();
+            }
         });
     };
 
@@ -229,14 +236,21 @@
                 state.autorefiller.phase = 'idle';
                 state.autorefiller.lastAction = 0;
             }
+            core.saveSettings();
         });
         panel.querySelector('#refiller-min').addEventListener('input', event => {
             const value = parseInt(event.target.value, 10);
-            if (!Number.isNaN(value) && value >= 0) state.autorefiller.minToRefill = value;
+            if (!Number.isNaN(value) && value >= 0) {
+                state.autorefiller.minToRefill = value;
+                core.saveSettings();
+            }
         });
         panel.querySelector('#refiller-max').addEventListener('input', event => {
             const value = parseInt(event.target.value, 10);
-            if (!Number.isNaN(value) && value >= 0) state.autorefiller.maxToBuy = value;
+            if (!Number.isNaN(value) && value >= 0) {
+                state.autorefiller.maxToBuy = value;
+                core.saveSettings();
+            }
         });
     };
 
@@ -248,24 +262,30 @@
             state.settings.checkMs = value;
             event.target.value = value;
             core.restartInterval();
+            core.saveSettings();
         });
         panel.querySelector('#settings-hp-hotbar').addEventListener('change', event => {
             state.settings.hpHotbar = event.target.value;
+            core.saveSettings();
         });
         panel.querySelector('#settings-sp-hotbar').addEventListener('change', event => {
             state.settings.spHotbar = event.target.value;
+            core.saveSettings();
         });
         panel.querySelector('#settings-hp-type').addEventListener('change', event => {
             state.settings.hpPotionType = event.target.value;
+            core.saveSettings();
         });
         panel.querySelector('#settings-sp-type').addEventListener('change', event => {
             state.settings.spPotionType = event.target.value;
+            core.saveSettings();
         });
     };
 
     const wireAutohunt = (panel) => {
         panel.querySelector('#autohunt-map').addEventListener('change', event => {
             state.autohunt.map = event.target.value;
+            core.saveSettings();
         });
     };
 

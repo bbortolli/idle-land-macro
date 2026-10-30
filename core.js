@@ -4,6 +4,8 @@
     const config = namespace.config;
     if (!config) throw new Error('Larp Autopot config must load before core.js');
 
+    const STORAGE_KEY = 'larpAutopotSettings';
+    const SAVE_DEBOUNCE_MS = 750;
     const REFILL_TIMING = {
         shopOpenMs: 1000,
         purchaseClickMs: 200,
@@ -40,8 +42,136 @@
     };
     let purchaseTargets = [];
     let purchaseVerificationStartedAt = 0;
+    let saveSettingsTimeout = null;
+    let settingsDirty = false;
 
     const log = (...args) => console.log('[Larp Autopot]', ...args);
+
+    const getPersistedSettings = () => ({
+        autopot: {
+            enabled: state.autopot.enabled,
+            hpThreshold: state.autopot.hpThreshold,
+            spThreshold: state.autopot.spThreshold
+        },
+        autorefiller: {
+            enabled: state.autorefiller.enabled,
+            minToRefill: state.autorefiller.minToRefill,
+            maxToBuy: state.autorefiller.maxToBuy
+        },
+        settings: {
+            checkMs: state.settings.checkMs,
+            hpHotbar: state.settings.hpHotbar,
+            spHotbar: state.settings.spHotbar,
+            hpPotionType: state.settings.hpPotionType,
+            spPotionType: state.settings.spPotionType
+        },
+        autohunt: {
+            map: state.autohunt.map
+        }
+    });
+
+    const applyStoredSettings = (stored) => {
+        if (!stored || typeof stored !== 'object') {
+            log('Stored settings are invalid; using defaults');
+            return;
+        }
+
+        if (typeof stored.autopot?.enabled === 'boolean') {
+            state.autopot.enabled = stored.autopot.enabled;
+        }
+        if (Number.isFinite(stored.autopot?.hpThreshold) && stored.autopot.hpThreshold >= 0) {
+            state.autopot.hpThreshold = stored.autopot.hpThreshold;
+        }
+        if (Number.isFinite(stored.autopot?.spThreshold) && stored.autopot.spThreshold >= 0) {
+            state.autopot.spThreshold = stored.autopot.spThreshold;
+        }
+
+        if (typeof stored.autorefiller?.enabled === 'boolean') {
+            state.autorefiller.enabled = stored.autorefiller.enabled;
+        }
+        if (Number.isFinite(stored.autorefiller?.minToRefill) && stored.autorefiller.minToRefill >= 0) {
+            state.autorefiller.minToRefill = stored.autorefiller.minToRefill;
+        }
+        if (Number.isFinite(stored.autorefiller?.maxToBuy) && stored.autorefiller.maxToBuy >= 0) {
+            state.autorefiller.maxToBuy = stored.autorefiller.maxToBuy;
+        }
+
+        if (Number.isFinite(stored.settings?.checkMs)) {
+            state.settings.checkMs = Math.max(200, Math.min(1000, stored.settings.checkMs));
+        }
+        if (/^[1-9]$/.test(stored.settings?.hpHotbar)) {
+            state.settings.hpHotbar = stored.settings.hpHotbar;
+        }
+        if (/^[1-9]$/.test(stored.settings?.spHotbar)) {
+            state.settings.spHotbar = stored.settings.spHotbar;
+        }
+        if (config.shops.potionTypes.hp.includes(stored.settings?.hpPotionType)) {
+            state.settings.hpPotionType = stored.settings.hpPotionType;
+        }
+        if (config.shops.potionTypes.sp.includes(stored.settings?.spPotionType)) {
+            state.settings.spPotionType = stored.settings.spPotionType;
+        }
+        if (config.maps.includes(stored.autohunt?.map)) {
+            state.autohunt.map = stored.autohunt.map;
+        }
+    };
+
+    const loadSettings = (onLoaded) => {
+        const storage = globalThis.chrome?.storage?.sync;
+        if (!storage) {
+            log('chrome.storage.sync is unavailable; using default settings');
+            onLoaded();
+            return;
+        }
+
+        storage.get(STORAGE_KEY, result => {
+            const error = globalThis.chrome.runtime.lastError;
+            if (error) {
+                log(`Could not load settings: ${error.message}`);
+                onLoaded();
+                return;
+            }
+
+            if (result[STORAGE_KEY] !== undefined) {
+                applyStoredSettings(result[STORAGE_KEY]);
+                log('Settings loaded from chrome.storage.sync');
+            }
+            onLoaded();
+        });
+    };
+
+    const saveSettingsNow = () => {
+        if (saveSettingsTimeout !== null) {
+            clearTimeout(saveSettingsTimeout);
+            saveSettingsTimeout = null;
+        }
+        if (!settingsDirty) return;
+
+        const storage = globalThis.chrome?.storage?.sync;
+        if (!storage) {
+            log('chrome.storage.sync is unavailable; settings were not saved');
+            return;
+        }
+
+        settingsDirty = false;
+        storage.set({ [STORAGE_KEY]: getPersistedSettings() }, () => {
+            const error = globalThis.chrome.runtime.lastError;
+            if (error) {
+                settingsDirty = true;
+                log(`Could not save settings: ${error.message}`);
+                return;
+            }
+            log('Settings saved to chrome.storage.sync');
+        });
+    };
+
+    const saveSettings = () => {
+        settingsDirty = true;
+        if (saveSettingsTimeout !== null) clearTimeout(saveSettingsTimeout);
+        saveSettingsTimeout = setTimeout(saveSettingsNow, SAVE_DEBOUNCE_MS);
+    };
+
+    window.addEventListener('pagehide', saveSettingsNow);
 
     const parseValue = (element) => {
         if (!element) return null;
@@ -334,13 +464,18 @@
         boot();
     };
 
+    const initialize = (buildUI) => {
+        loadSettings(() => start(buildUI));
+    };
+
     namespace.core = {
         state,
         config,
         parseValue,
         getHotbarSlots,
         getPotionQty,
+        saveSettings,
         restartInterval,
-        start
+        initialize
     };
 })(globalThis.LarpAutopot = globalThis.LarpAutopot || {});

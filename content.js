@@ -5,5 +5,5 @@
         throw new Error('Larp Autopot modules did not load in the expected order');
     }
 
-    namespace.core.start(namespace.ui.build);
+    namespace.core.initialize(namespace.ui.build);
 })(globalThis.LarpAutopot = globalThis.LarpAutopot || {});

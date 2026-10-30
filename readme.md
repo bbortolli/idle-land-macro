@@ -106,17 +106,11 @@ menus: {
 }
 ```
 
-## Estado Atual
-- Extensão com quatro abas funcionais: Autopot, Autorefiller, Autohunt e Settings
-- Persistência das configurações (`chrome.storage`): NÃO implementado
-
-O `manifest.json` já declara `permissions: ["storage"]`, mas a extensão ainda não salva/carrega as configurações entre sessões — reiniciar a página reseta para os valores padrão.
-
-## Próximo Passo Sugerido
-Implementar `chrome.storage.sync` para:
-- Salvar todo o `state` (autopot, autorefiller, autohunt, settings) ao alterar qualquer input
-- Carregar no `boot()` antes de construir a UI
-- Opcional: botão "Reset to defaults" no painel
+## Persistência das Configurações
+- As opções de Autopot, Autorefiller, Autohunt e Settings são carregadas de `chrome.storage.sync` antes da interface e da macro iniciarem.
+- Alterações são salvas automaticamente, com debounce para evitar excesso de gravações durante a digitação.
+- Apenas configurações são persistidas; o estado temporário do fluxo de recarga começa em `idle` quando a página é carregada.
+- Se a leitura ou gravação falhar, o erro é registrado no console com o prefixo `[Larp Autopot]`.
 
 ## Como Instalar (para testes)
 1. Manter a estrutura completa da extensão conforme a seção [Estrutura de Arquivos](#estrutura-de-arquivos)
