@@ -1,0 +1,20 @@
+{
+  "manifest_version": 3,
+  "name": "Larp Autopot",
+  "version": "1.0",
+  "description": "Autopot e Autorefiller para Cute Idle Land",
+  "permissions": ["storage"],
+  "host_permissions": ["https://www.cuteidleland.com/*"],
+  "content_scripts": [
+    {
+      "matches": ["https://www.cuteidleland.com/*"],
+      "js": [
+        "config/game.js",
+        "core.js",
+        "ui/panel.js",
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}
