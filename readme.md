@@ -79,7 +79,7 @@ larp-autopot/
 ### 3. Autohunt
 - Seleciona o mapa para retomar automaticamente a caça após o refiller
 - Abre primeiro o menu `[data-win="travel"]` (Mapa) e, após ele abrir, clica no elemento `[data-map="<mapa selecionado>"]`
-- Mapas disponíveis: `clover_meadow`, `whisper_woods`, `dewdrop_pond`, `glimmer_cave`, `honeyhill_farm`, `mistmoor_swamp`, `frostpeak`, `sunken_ruins`, `ember_volcano`, `skyreach_spire`, `lunar_garden`, `starfall_abyss`, `crystal_sanctum` e `puffton`
+- Mapas disponíveis: `clover_meadow`, `whisper_woods`, `dewdrop_pond`, `glimmer_cave`, `honeyhill_farm`, `mistmoor_swamp`, `frostpeak`, `sunken_ruins`, `ember_volcano`, `skyreach_spire`, `lunar_garden`, `starfall_abyss`, `crystal_sanctum`, `coral_depths`, `thunder_plateau`, `bone_desert`, `obsidian_forge`, `eternal_glacier`, `mirror_marsh`, `clockwork_citadel`, `dream_grove`, `solar_crown`, `origin_core` e `puffton`
 
 ### 4. Settings
 - Taxa de verificação: 200–1000 ms (default 500, com clamp)

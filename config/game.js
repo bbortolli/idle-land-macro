@@ -33,6 +33,16 @@
             'lunar_garden',
             'starfall_abyss',
             'crystal_sanctum',
+            'coral_depths',
+            'thunder_plateau',
+            'bone_desert',
+            'obsidian_forge',
+            'eternal_glacier',
+            'mirror_marsh',
+            'clockwork_citadel',
+            'dream_grove',
+            'solar_crown',
+            'origin_core',
             'puffton'
         ]
     };

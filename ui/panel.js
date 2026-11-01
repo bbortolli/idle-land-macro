@@ -20,7 +20,10 @@
     ).join('');
 
     const buildMapOptions = (selected) => config.maps.map(map =>
-        `<option value="${map}" ${map === selected ? 'selected' : ''}>${map.replace(/_/g, ' ')}</option>`
+        `<option value="${map}" ${map === selected ? 'selected' : ''}>${map
+            .split('_')
+            .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+            .join(' ')}</option>`
     ).join('');
 
     const build = () => {
