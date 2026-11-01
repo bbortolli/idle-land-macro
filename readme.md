@@ -64,6 +64,8 @@ larp-autopot/
 
 ### 2. Autorefiller
 - Lê quantidade via `.qty` no slot da hotbar
+- Permite ativar/desativar a recarga de poções de HP e SP separadamente
+- Só verifica, compra e usa o slot de uma poção quando o respectivo controle estiver ativado
 - Configurável: mínimo para recarregar e máximo para comprar
 - Reutiliza os tipos de poção e slots configurados em Settings
 - Fluxo em fases (`idle → goToShop → openingShop → buying → purchasing → verifyPurchase → closingShop → returning → idle`):
@@ -107,8 +109,9 @@ menus: {
 ```
 
 ## Persistência das Configurações
-- As opções de Autopot, Autorefiller, Autohunt e Settings são carregadas de `chrome.storage.sync` antes da interface e da macro iniciarem.
+- As opções de Autopot, Autorefiller (incluindo os controles separados de HP e SP), Autohunt e Settings são carregadas de `chrome.storage.sync` antes da interface e da macro iniciarem.
 - Alterações são salvas automaticamente, com debounce para evitar excesso de gravações durante a digitação.
+- Configurações antigas com um único controle do Autorefiller são migradas automaticamente para os controles de HP e SP.
 - Apenas configurações são persistidas; o estado temporário do fluxo de recarga começa em `idle` quando a página é carregada.
 - Se a leitura ou gravação falhar, o erro é registrado no console com o prefixo `[Larp Autopot]`.
 

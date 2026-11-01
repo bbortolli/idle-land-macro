@@ -21,7 +21,8 @@
             spThreshold: 50
         },
         autorefiller: {
-            enabled: false,
+            hpEnabled: false,
+            spEnabled: false,
             minToRefill: 10,
             maxToBuy: 50,
             phase: 'idle',
@@ -54,7 +55,8 @@
             spThreshold: state.autopot.spThreshold
         },
         autorefiller: {
-            enabled: state.autorefiller.enabled,
+            hpEnabled: state.autorefiller.hpEnabled,
+            spEnabled: state.autorefiller.spEnabled,
             minToRefill: state.autorefiller.minToRefill,
             maxToBuy: state.autorefiller.maxToBuy
         },
@@ -76,6 +78,7 @@
             return;
         }
 
+        let migratedAutorefillerToggle = false;
         if (typeof stored.autopot?.enabled === 'boolean') {
             state.autopot.enabled = stored.autopot.enabled;
         }
@@ -86,8 +89,21 @@
             state.autopot.spThreshold = stored.autopot.spThreshold;
         }
 
+        if (typeof stored.autorefiller?.hpEnabled === 'boolean') {
+            state.autorefiller.hpEnabled = stored.autorefiller.hpEnabled;
+        }
+        if (typeof stored.autorefiller?.spEnabled === 'boolean') {
+            state.autorefiller.spEnabled = stored.autorefiller.spEnabled;
+        }
         if (typeof stored.autorefiller?.enabled === 'boolean') {
-            state.autorefiller.enabled = stored.autorefiller.enabled;
+            if (typeof stored.autorefiller.hpEnabled !== 'boolean') {
+                state.autorefiller.hpEnabled = stored.autorefiller.enabled;
+                migratedAutorefillerToggle = true;
+            }
+            if (typeof stored.autorefiller.spEnabled !== 'boolean') {
+                state.autorefiller.spEnabled = stored.autorefiller.enabled;
+                migratedAutorefillerToggle = true;
+            }
         }
         if (Number.isFinite(stored.autorefiller?.minToRefill) && stored.autorefiller.minToRefill >= 0) {
             state.autorefiller.minToRefill = stored.autorefiller.minToRefill;
@@ -113,6 +129,10 @@
         }
         if (config.maps.includes(stored.autohunt?.map)) {
             state.autohunt.map = stored.autohunt.map;
+        }
+        if (migratedAutorefillerToggle) {
+            log('Migrating saved autorefiller toggle to separate HP/SP settings');
+            saveSettings();
         }
     };
 
@@ -283,18 +303,17 @@
     };
 
     const checkAutorefiller = () => {
-        if (!state.autorefiller.enabled) return;
-
         const now = Date.now();
         const { phase, minToRefill, maxToBuy } = state.autorefiller;
 
         if (phase === 'idle') {
+            if (!state.autorefiller.hpEnabled && !state.autorefiller.spEnabled) return;
             if (now - state.autorefiller.lastAction < 3000) return;
 
             const hpQty = getPotionQty(state.settings.hpHotbar);
             const spQty = getPotionQty(state.settings.spHotbar);
-            const needHp = hpQty !== null && hpQty < minToRefill;
-            const needSp = spQty !== null && spQty < minToRefill;
+            const needHp = state.autorefiller.hpEnabled && hpQty !== null && hpQty < minToRefill;
+            const needSp = state.autorefiller.spEnabled && spQty !== null && spQty < minToRefill;
 
             if (needHp || needSp) {
                 log(`Refill needed - HP: ${hpQty} (min ${minToRefill}), SP: ${spQty} (min ${minToRefill})`);
@@ -319,10 +338,23 @@
             const hpQty = getPotionQty(state.settings.hpHotbar);
             const spQty = getPotionQty(state.settings.spHotbar);
             const requests = [
-                { label: 'HP', potionType: state.settings.hpPotionType, qty: hpQty },
-                { label: 'SP', potionType: state.settings.spPotionType, qty: spQty }
-            ].filter(item => item.qty !== null && item.qty < minToRefill);
+                {
+                    label: 'HP',
+                    enabled: state.autorefiller.hpEnabled,
+                    potionType: state.settings.hpPotionType,
+                    qty: hpQty,
+                    slot: state.settings.hpHotbar
+                },
+                {
+                    label: 'SP',
+                    enabled: state.autorefiller.spEnabled,
+                    potionType: state.settings.spPotionType,
+                    qty: spQty,
+                    slot: state.settings.spHotbar
+                }
+            ].filter(item => item.enabled && item.qty !== null && item.qty < minToRefill);
             const purchases = [];
+            purchaseTargets = [];
 
             for (const item of requests) {
                 const amount = Math.max(0, maxToBuy - item.qty);
@@ -335,11 +367,13 @@
                     return;
                 }
 
-                purchaseTargets.push({
-                    label: item.label,
-                    slot: item.label === 'HP' ? state.settings.hpHotbar : state.settings.spHotbar,
-                    quantity: maxToBuy
-                });
+                if (amount > 0) {
+                    purchaseTargets.push({
+                        label: item.label,
+                        slot: item.slot,
+                        quantity: maxToBuy
+                    });
+                }
                 plan.forEach(step => purchases.push({
                     potionType: item.potionType,
                     quantity: step.quantity,
@@ -409,16 +443,19 @@
             }
 
             state.autorefiller.phase = 'closingShop';
+            const slotsToUse = quantitiesReady
+                ? purchaseTargets.map(target => target.slot)
+                : [];
             purchaseTargets = [];
             clickMenuButton('shop');
             setTimeout(() => {
                 state.autorefiller.phase = 'returning';
                 clickMenuButton('town');
                 setTimeout(() => {
-                    const hpSlot = getHotbarSlot(state.settings.hpHotbar);
-                    const spSlot = getHotbarSlot(state.settings.spHotbar);
-                    if (hpSlot) hpSlot.click();
-                    if (spSlot) spSlot.click();
+                    slotsToUse.forEach(slotIndex => {
+                        const slot = getHotbarSlot(slotIndex);
+                        if (slot) slot.click();
+                    });
                     returnToHunt();
                     log('Refilling complete');
                     state.autorefiller.phase = 'idle';

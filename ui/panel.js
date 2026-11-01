@@ -100,8 +100,13 @@
                 <div role="tabpanel" data-tab-panel="autorefiller" style="display:none;">
                     <div style="${sectionStyle('#9b59b6')}">
                         <div style="${rowStyle};margin-bottom:8px;">
-                            <input type="checkbox" id="refiller-enabled" ${state.autorefiller.enabled ? 'checked' : ''}>
                             <span style="color:#9b59b6;font-weight:700;">Autorefiller</span>
+                        </div>
+                        <div style="${rowStyle}">
+                            <input type="checkbox" id="refiller-hp-enabled" ${state.autorefiller.hpEnabled ? 'checked' : ''}>
+                            <label for="refiller-hp-enabled" style="color:#ff6b6b;">HP potion</label>
+                            <input type="checkbox" id="refiller-sp-enabled" ${state.autorefiller.spEnabled ? 'checked' : ''}>
+                            <label for="refiller-sp-enabled" style="color:#6bb5ff;">SP potion</label>
                         </div>
                         <div style="${rowStyle}">
                             <span>Min to refill:</span>
@@ -233,14 +238,17 @@
     };
 
     const wireAutorefiller = (panel) => {
-        panel.querySelector('#refiller-enabled').addEventListener('change', event => {
-            state.autorefiller.enabled = event.target.checked;
-            if (event.target.checked) {
-                state.autorefiller.phase = 'idle';
-                state.autorefiller.lastAction = 0;
-            }
-            core.saveSettings();
-        });
+        const wirePotionRefill = (id, setting) => {
+            panel.querySelector(id).addEventListener('change', event => {
+                state.autorefiller[setting] = event.target.checked;
+                if (event.target.checked && state.autorefiller.phase === 'idle') {
+                    state.autorefiller.lastAction = 0;
+                }
+                core.saveSettings();
+            });
+        };
+        wirePotionRefill('#refiller-hp-enabled', 'hpEnabled');
+        wirePotionRefill('#refiller-sp-enabled', 'spEnabled');
         panel.querySelector('#refiller-min').addEventListener('input', event => {
             const value = parseInt(event.target.value, 10);
             if (!Number.isNaN(value) && value >= 0) {
