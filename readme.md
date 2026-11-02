@@ -66,7 +66,7 @@ larp-autopot/
 - Lê quantidade via `.qty` no slot da hotbar
 - Permite ativar/desativar a recarga de poções de HP e SP separadamente
 - Só verifica, compra e usa o slot de uma poção quando o respectivo controle estiver ativado
-- Configurável: mínimo para recarregar e máximo para comprar
+- Limites mínimo e máximo de refill configuráveis independentemente para HP e SP
 - Reutiliza os tipos de poção e slots configurados em Settings
 - Fluxo em fases (`idle → preparing → goToShop → openingTown → openingShop → buying → purchasing → settlingPurchases → verifyPurchase → closingShop → returning → idle`):
   1. Verifica quantidades; se abaixo do mínimo, aguarda de 0,8 a 1,6 s antes de iniciar a ida à loja
@@ -89,6 +89,12 @@ larp-autopot/
 - O Autopot e o Autorefiller usam os slots definidos aqui; o Autorefiller também usa os tipos de poção definidos aqui
 - Dropdowns de hotbar auto-sincronizam via `MutationObserver` no `#hotbar`
 
+### 5. Fastclick
+- Permite ativar cliques repetidos independentemente para cada slot da hotbar de 1 a 9
+- Usa os mesmos slots da hotbar do jogo que o Autopot
+- Intervalo compartilhado e configurável de 100 a 10000 ms (default 500 ms)
+- Cada slot habilitado recebe um clique por intervalo; os slots desabilitados não são tocados
+
 ## Detalhes Técnicos Importantes
 - Sem simulação de teclado — cliques diretos nos elementos evitam problemas de `isTrusted` em jogos canvas
 - UI fixa à direita: painel `#larp-autopot-panel` com `z-index: 2147483647`
@@ -109,10 +115,12 @@ menus: {
 ```
 
 ## Persistência das Configurações
-- As opções de Autopot, Autorefiller (incluindo os controles separados de HP e SP), Autohunt e Settings são carregadas de `chrome.storage.sync` antes da interface e da macro iniciarem.
-- Alterações são salvas automaticamente, com debounce para evitar excesso de gravações durante a digitação.
-- Configurações antigas com um único controle do Autorefiller são migradas automaticamente para os controles de HP e SP.
+- As opções são carregadas primeiro de `chrome.storage.local` antes da interface e da macro iniciarem, e também gravadas em `chrome.storage.sync`.
+- Alterações são gravadas imediatamente em `chrome.storage.local` e sincronizadas com debounce para evitar excesso de gravações.
+- Se não houver cópia local, configurações existentes em `chrome.storage.sync` são carregadas e migradas para o armazenamento local.
+- Configurações antigas com controles ou limites compartilhados do Autorefiller são migradas automaticamente para HP e SP.
 - Apenas configurações são persistidas; o estado temporário do fluxo de recarga começa em `idle` quando a página é carregada.
+- Recarregue a extensão existente em `chrome://extensions/` mantendo o mesmo diretório e ID para preservar os dados locais. Remover e instalar como uma extensão diferente cria outro armazenamento.
 - Se a leitura ou gravação falhar, o erro é registrado no console com o prefixo `[Larp Autopot]`.
 
 ## Como Instalar (para testes)

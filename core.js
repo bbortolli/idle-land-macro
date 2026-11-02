@@ -26,8 +26,10 @@
         autorefiller: {
             hpEnabled: false,
             spEnabled: false,
-            minToRefill: 10,
-            maxToBuy: 50,
+            hpMinToRefill: 10,
+            spMinToRefill: 10,
+            hpMaxToBuy: 50,
+            spMaxToBuy: 50,
             phase: 'idle',
             lastAction: 0
         },
@@ -41,6 +43,12 @@
         autohunt: {
             map: 'clover_meadow'
         },
+        fastClick: {
+            intervalMs: 500,
+            slots: Object.fromEntries(
+                Array.from({ length: 9 }, (_, index) => [String(index + 1), false])
+            )
+        },
         observer: null,
         intervalId: null
     };
@@ -48,6 +56,7 @@
     let purchaseVerificationStartedAt = 0;
     let saveSettingsTimeout = null;
     let settingsDirty = false;
+    let fastClickIntervalId = null;
 
     const log = (...args) => console.log('[Larp Autopot]', ...args);
 
@@ -73,8 +82,10 @@
         autorefiller: {
             hpEnabled: state.autorefiller.hpEnabled,
             spEnabled: state.autorefiller.spEnabled,
-            minToRefill: state.autorefiller.minToRefill,
-            maxToBuy: state.autorefiller.maxToBuy
+            hpMinToRefill: state.autorefiller.hpMinToRefill,
+            spMinToRefill: state.autorefiller.spMinToRefill,
+            hpMaxToBuy: state.autorefiller.hpMaxToBuy,
+            spMaxToBuy: state.autorefiller.spMaxToBuy
         },
         settings: {
             checkMs: state.settings.checkMs,
@@ -85,6 +96,10 @@
         },
         autohunt: {
             map: state.autohunt.map
+        },
+        fastClick: {
+            intervalMs: state.fastClick.intervalMs,
+            slots: { ...state.fastClick.slots }
         }
     });
 
@@ -94,7 +109,7 @@
             return;
         }
 
-        let migratedAutorefillerToggle = false;
+        let migratedSettings = false;
         if (typeof stored.autopot?.enabled === 'boolean') {
             state.autopot.enabled = stored.autopot.enabled;
         }
@@ -114,18 +129,36 @@
         if (typeof stored.autorefiller?.enabled === 'boolean') {
             if (typeof stored.autorefiller.hpEnabled !== 'boolean') {
                 state.autorefiller.hpEnabled = stored.autorefiller.enabled;
-                migratedAutorefillerToggle = true;
+                migratedSettings = true;
             }
             if (typeof stored.autorefiller.spEnabled !== 'boolean') {
                 state.autorefiller.spEnabled = stored.autorefiller.enabled;
-                migratedAutorefillerToggle = true;
+                migratedSettings = true;
             }
         }
-        if (Number.isFinite(stored.autorefiller?.minToRefill) && stored.autorefiller.minToRefill >= 0) {
-            state.autorefiller.minToRefill = stored.autorefiller.minToRefill;
+        if (Number.isFinite(stored.autorefiller?.hpMinToRefill) && stored.autorefiller.hpMinToRefill >= 0) {
+            state.autorefiller.hpMinToRefill = stored.autorefiller.hpMinToRefill;
+        } else if (Number.isFinite(stored.autorefiller?.minToRefill) && stored.autorefiller.minToRefill >= 0) {
+            state.autorefiller.hpMinToRefill = stored.autorefiller.minToRefill;
+            migratedSettings = true;
         }
-        if (Number.isFinite(stored.autorefiller?.maxToBuy) && stored.autorefiller.maxToBuy >= 0) {
-            state.autorefiller.maxToBuy = stored.autorefiller.maxToBuy;
+        if (Number.isFinite(stored.autorefiller?.spMinToRefill) && stored.autorefiller.spMinToRefill >= 0) {
+            state.autorefiller.spMinToRefill = stored.autorefiller.spMinToRefill;
+        } else if (Number.isFinite(stored.autorefiller?.minToRefill) && stored.autorefiller.minToRefill >= 0) {
+            state.autorefiller.spMinToRefill = stored.autorefiller.minToRefill;
+            migratedSettings = true;
+        }
+        if (Number.isFinite(stored.autorefiller?.hpMaxToBuy) && stored.autorefiller.hpMaxToBuy >= 0) {
+            state.autorefiller.hpMaxToBuy = stored.autorefiller.hpMaxToBuy;
+        } else if (Number.isFinite(stored.autorefiller?.maxToBuy) && stored.autorefiller.maxToBuy >= 0) {
+            state.autorefiller.hpMaxToBuy = stored.autorefiller.maxToBuy;
+            migratedSettings = true;
+        }
+        if (Number.isFinite(stored.autorefiller?.spMaxToBuy) && stored.autorefiller.spMaxToBuy >= 0) {
+            state.autorefiller.spMaxToBuy = stored.autorefiller.spMaxToBuy;
+        } else if (Number.isFinite(stored.autorefiller?.maxToBuy) && stored.autorefiller.maxToBuy >= 0) {
+            state.autorefiller.spMaxToBuy = stored.autorefiller.maxToBuy;
+            migratedSettings = true;
         }
 
         if (Number.isFinite(stored.settings?.checkMs)) {
@@ -146,65 +179,124 @@
         if (config.maps.includes(stored.autohunt?.map)) {
             state.autohunt.map = stored.autohunt.map;
         }
-        if (migratedAutorefillerToggle) {
-            log('Migrating saved autorefiller toggle to separate HP/SP settings');
+        if (Number.isFinite(stored.fastClick?.intervalMs)) {
+            state.fastClick.intervalMs = Math.max(100, Math.min(10000, stored.fastClick.intervalMs));
+        }
+        if (stored.fastClick?.slots && typeof stored.fastClick.slots === 'object') {
+            Object.keys(state.fastClick.slots).forEach(slot => {
+                if (typeof stored.fastClick.slots[slot] === 'boolean') {
+                    state.fastClick.slots[slot] = stored.fastClick.slots[slot];
+                }
+            });
+        }
+        if (migratedSettings) {
+            log('Migrating saved autorefiller settings');
             saveSettings();
         }
     };
 
-    const loadSettings = (onLoaded) => {
-        const storage = globalThis.chrome?.storage?.sync;
-        if (!storage) {
-            log('chrome.storage.sync is unavailable; using default settings');
-            onLoaded();
+    const writeSettings = (storage, settings, areaName) => {
+        if (!storage) return;
+        storage.set({ [STORAGE_KEY]: settings }, () => {
+            const error = globalThis.chrome.runtime.lastError;
+            if (error) {
+                log(`Could not save settings to chrome.storage.${areaName}: ${error.message}`);
+                return;
+            }
+            if (areaName === 'sync') {
+                log('Settings saved to chrome.storage.sync');
+            }
+        });
+    };
+
+    const readSyncSettings = (onLoaded) => {
+        const syncStorage = globalThis.chrome?.storage?.sync;
+        if (!syncStorage) {
+            log('chrome.storage.sync is unavailable');
+            onLoaded(false);
             return;
         }
 
-        storage.get(STORAGE_KEY, result => {
+        syncStorage.get(STORAGE_KEY, result => {
             const error = globalThis.chrome.runtime.lastError;
             if (error) {
-                log(`Could not load settings: ${error.message}`);
+                log(`Could not load settings from chrome.storage.sync: ${error.message}`);
+                onLoaded(false);
+                return;
+            }
+
+            const stored = result[STORAGE_KEY];
+            if (stored !== undefined) {
+                applyStoredSettings(stored);
+                log('Settings loaded from chrome.storage.sync');
+                onLoaded(true);
+                return;
+            }
+            onLoaded(false);
+        });
+    };
+
+    const loadSettings = (onLoaded) => {
+        const localStorage = globalThis.chrome?.storage?.local;
+        if (!localStorage) {
+            readSyncSettings(() => onLoaded());
+            return;
+        }
+
+        localStorage.get(STORAGE_KEY, result => {
+            const error = globalThis.chrome.runtime.lastError;
+            if (error) {
+                log(`Could not load settings from chrome.storage.local: ${error.message}`);
+                readSyncSettings(() => onLoaded());
+                return;
+            }
+
+            const stored = result[STORAGE_KEY];
+            if (stored !== undefined) {
+                applyStoredSettings(stored);
+                log('Settings loaded from chrome.storage.local');
                 onLoaded();
                 return;
             }
 
-            if (result[STORAGE_KEY] !== undefined) {
-                applyStoredSettings(result[STORAGE_KEY]);
-                log('Settings loaded from chrome.storage.sync');
-            }
-            onLoaded();
+            readSyncSettings(foundInSync => {
+                if (foundInSync) {
+                    writeSettings(localStorage, getPersistedSettings(), 'local');
+                    log('Migrated existing settings to chrome.storage.local');
+                }
+                onLoaded();
+            });
         });
     };
 
-    const saveSettingsNow = () => {
+    const saveSettingsNow = (persistLocal = true) => {
         if (saveSettingsTimeout !== null) {
             clearTimeout(saveSettingsTimeout);
             saveSettingsTimeout = null;
         }
         if (!settingsDirty) return;
 
-        const storage = globalThis.chrome?.storage?.sync;
+        settingsDirty = false;
+        const settings = getPersistedSettings();
+        const storage = globalThis.chrome?.storage;
         if (!storage) {
-            log('chrome.storage.sync is unavailable; settings were not saved');
+            log('Chrome extension storage is unavailable; settings were not saved');
             return;
         }
-
-        settingsDirty = false;
-        storage.set({ [STORAGE_KEY]: getPersistedSettings() }, () => {
-            const error = globalThis.chrome.runtime.lastError;
-            if (error) {
-                settingsDirty = true;
-                log(`Could not save settings: ${error.message}`);
-                return;
-            }
-            log('Settings saved to chrome.storage.sync');
-        });
+        if (persistLocal) writeSettings(storage.local, settings, 'local');
+        writeSettings(storage.sync, settings, 'sync');
     };
 
     const saveSettings = () => {
         settingsDirty = true;
+        const localStorage = globalThis.chrome?.storage?.local;
+        if (localStorage) {
+            writeSettings(localStorage, getPersistedSettings(), 'local');
+        } else {
+            log('chrome.storage.local is unavailable; settings are not persisted locally');
+        }
         if (saveSettingsTimeout !== null) clearTimeout(saveSettingsTimeout);
-        saveSettingsTimeout = setTimeout(saveSettingsNow, SAVE_DEBOUNCE_MS);
+        saveSettingsTimeout = setTimeout(() => saveSettingsNow(false), SAVE_DEBOUNCE_MS);
     };
 
     window.addEventListener('pagehide', saveSettingsNow);
@@ -228,6 +320,24 @@
         if (!quantityElement) return null;
         const quantity = parseInt(quantityElement.textContent, 10);
         return Number.isNaN(quantity) ? null : quantity;
+    };
+
+    const updateFastClickInterval = () => {
+        if (fastClickIntervalId !== null) {
+            clearInterval(fastClickIntervalId);
+            fastClickIntervalId = null;
+        }
+
+        const enabledSlots = Object.keys(state.fastClick.slots)
+            .filter(slot => state.fastClick.slots[slot]);
+        if (enabledSlots.length === 0) return;
+
+        fastClickIntervalId = setInterval(() => {
+            enabledSlots.forEach(slotIndex => {
+                const slot = getHotbarSlot(slotIndex);
+                if (slot) slot.click();
+            });
+        }, state.fastClick.intervalMs);
     };
 
     const clickMenuButton = (key) => {
@@ -320,7 +430,13 @@
 
     const checkAutorefiller = () => {
         const now = Date.now();
-        const { phase, minToRefill, maxToBuy } = state.autorefiller;
+        const {
+            phase,
+            hpMinToRefill,
+            spMinToRefill,
+            hpMaxToBuy,
+            spMaxToBuy
+        } = state.autorefiller;
 
         if (phase === 'idle') {
             if (!state.autorefiller.hpEnabled && !state.autorefiller.spEnabled) return;
@@ -328,11 +444,11 @@
 
             const hpQty = getPotionQty(state.settings.hpHotbar);
             const spQty = getPotionQty(state.settings.spHotbar);
-            const needHp = state.autorefiller.hpEnabled && hpQty !== null && hpQty < minToRefill;
-            const needSp = state.autorefiller.spEnabled && spQty !== null && spQty < minToRefill;
+            const needHp = state.autorefiller.hpEnabled && hpQty !== null && hpQty < hpMinToRefill;
+            const needSp = state.autorefiller.spEnabled && spQty !== null && spQty < spMinToRefill;
 
             if (needHp || needSp) {
-                log(`Refill needed - HP: ${hpQty} (min ${minToRefill}), SP: ${spQty} (min ${minToRefill})`);
+                log(`Refill needed - HP: ${hpQty} (min ${hpMinToRefill}), SP: ${spQty} (min ${spMinToRefill})`);
                 state.autorefiller.phase = 'preparing';
                 state.autorefiller.lastAction = now;
                 setTimeout(() => {
@@ -369,21 +485,26 @@
                     enabled: state.autorefiller.hpEnabled,
                     potionType: state.settings.hpPotionType,
                     qty: hpQty,
-                    slot: state.settings.hpHotbar
+                    slot: state.settings.hpHotbar,
+                    maxToBuy: hpMaxToBuy
                 },
                 {
                     label: 'SP',
                     enabled: state.autorefiller.spEnabled,
                     potionType: state.settings.spPotionType,
                     qty: spQty,
-                    slot: state.settings.spHotbar
+                    slot: state.settings.spHotbar,
+                    maxToBuy: spMaxToBuy
                 }
-            ].filter(item => item.enabled && item.qty !== null && item.qty < minToRefill);
+            ].filter(item => {
+                const minQty = item.label === 'HP' ? hpMinToRefill : spMinToRefill;
+                return item.enabled && item.qty !== null && item.qty < minQty;
+            });
             const purchases = [];
             purchaseTargets = [];
 
             for (const item of requests) {
-                const amount = Math.max(0, maxToBuy - item.qty);
+                const amount = Math.max(0, item.maxToBuy - item.qty);
                 const plan = buildShopPurchasePlan(item.potionType, amount);
                 if (plan === null) {
                     log(`Cannot exactly buy ${amount} ${item.label} potions (${item.potionType}); available buy quantities do not match`);
@@ -396,7 +517,7 @@
                     purchaseTargets.push({
                         label: item.label,
                         slot: item.slot,
-                        quantity: maxToBuy
+                        quantity: item.maxToBuy
                     });
                 }
                 plan.forEach(step => purchases.push({
@@ -526,7 +647,10 @@
     };
 
     const initialize = (buildUI) => {
-        loadSettings(() => start(buildUI));
+        loadSettings(() => {
+            updateFastClickInterval();
+            start(buildUI);
+        });
     };
 
     namespace.core = {
@@ -535,6 +659,7 @@
         parseValue,
         getHotbarSlots,
         getPotionQty,
+        updateFastClickInterval,
         saveSettings,
         restartInterval,
         initialize

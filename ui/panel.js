@@ -60,6 +60,12 @@
         const rowStyle = 'display:flex;align-items:center;gap:6px;margin-bottom:6px;flex-wrap:wrap;';
         const inputStyle = 'width:55px;padding:2px 4px;background:#2a2a33;color:#eee;border:1px solid #555;border-radius:4px;';
         const selectStyle = 'padding:2px;background:#2a2a33;color:#eee;border:1px solid #555;border-radius:4px;';
+        const fastClickOptions = Object.keys(state.fastClick.slots).map(slot => `
+            <label style="display:flex;align-items:center;gap:3px;padding:5px 7px;background:#2a2a33;border:1px solid #555;border-radius:4px;">
+                <input type="checkbox" data-fastclick-slot="${slot}" ${state.fastClick.slots[slot] ? 'checked' : ''}>
+                ${slot}
+            </label>
+        `).join('');
 
         panel.innerHTML = `
             <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;">
@@ -69,13 +75,15 @@
             </div>
             <div id="larp-panel-content">
                 <div role="tablist" aria-label="Macro sections"
-                    style="display:flex;gap:4px;margin-bottom:10px;border-bottom:1px solid #444;padding-bottom:6px;">
+                    style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px;border-bottom:1px solid #444;padding-bottom:6px;">
                     <button type="button" role="tab" data-tab="autopot" aria-selected="true"
                         style="flex:1;padding:5px 2px;background:#3a3a46;color:#ffd700;border:1px solid #555;border-radius:4px;cursor:pointer;">Autopot</button>
                     <button type="button" role="tab" data-tab="autorefiller" aria-selected="false"
                         style="flex:1;padding:5px 2px;background:#22222a;color:#aaa;border:1px solid #444;border-radius:4px;cursor:pointer;">Refill</button>
                     <button type="button" role="tab" data-tab="autohunt" aria-selected="false"
                         style="flex:1;padding:5px 2px;background:#22222a;color:#aaa;border:1px solid #444;border-radius:4px;cursor:pointer;">Hunt</button>
+                    <button type="button" role="tab" data-tab="fastclick" aria-selected="false"
+                        style="flex:1;padding:5px 2px;background:#22222a;color:#aaa;border:1px solid #444;border-radius:4px;cursor:pointer;">Fastclick</button>
                     <button type="button" role="tab" data-tab="settings" aria-selected="false"
                         style="flex:1;padding:5px 2px;background:#22222a;color:#aaa;border:1px solid #444;border-radius:4px;cursor:pointer;">Settings</button>
                 </div>
@@ -109,10 +117,20 @@
                             <label for="refiller-sp-enabled" style="color:#6bb5ff;">SP potion</label>
                         </div>
                         <div style="${rowStyle}">
-                            <span>Min to refill:</span>
-                            <input type="number" id="refiller-min" value="${state.autorefiller.minToRefill}" style="${inputStyle}">
-                            <span>Max to buy:</span>
-                            <input type="number" id="refiller-max" value="${state.autorefiller.maxToBuy}" style="${inputStyle}">
+                            <span style="color:#ff6b6b;">HP min:</span>
+                            <input type="number" id="refiller-hp-min" value="${state.autorefiller.hpMinToRefill}" style="${inputStyle}">
+                        </div>
+                        <div style="${rowStyle}">
+                            <span style="color:#6bb5ff;">SP min:</span>
+                            <input type="number" id="refiller-sp-min" value="${state.autorefiller.spMinToRefill}" style="${inputStyle}">
+                        </div>
+                        <div style="${rowStyle}">
+                            <span style="color:#ff6b6b;">HP max:</span>
+                            <input type="number" id="refiller-hp-max" value="${state.autorefiller.hpMaxToBuy}" style="${inputStyle}">
+                        </div>
+                        <div style="${rowStyle}">
+                            <span style="color:#6bb5ff;">SP max:</span>
+                            <input type="number" id="refiller-sp-max" value="${state.autorefiller.spMaxToBuy}" style="${inputStyle}">
                         </div>
                         <div id="refiller-qty" style="font-size:10px;color:#889;margin-top:4px;">
                             Qty: HP ${core.getPotionQty(state.settings.hpHotbar) ?? '?'} / SP ${core.getPotionQty(state.settings.spHotbar) ?? '?'}
@@ -131,6 +149,22 @@
                         </div>
                         <div style="font-size:10px;color:#889;margin-top:4px;">
                             Returns to this map after refilling.
+                        </div>
+                    </div>
+                </div>
+
+                <div role="tabpanel" data-tab-panel="fastclick" style="display:none;">
+                    <div style="${sectionStyle('#e6a23c')}">
+                        <div style="font-weight:700;margin-bottom:8px;color:#e6a23c;">Fastclick</div>
+                        <div style="${rowStyle}">
+                            <span>Interval:</span>
+                            <input type="number" id="fastclick-interval" value="${state.fastClick.intervalMs}"
+                                min="100" max="10000" step="50" style="${inputStyle}">
+                            <span>ms</span>
+                        </div>
+                        <div style="font-size:10px;color:#aaa;margin-bottom:6px;">Select hotbar slots to click repeatedly:</div>
+                        <div style="display:flex;flex-wrap:wrap;gap:5px;">
+                            ${fastClickOptions}
                         </div>
                     </div>
                 </div>
@@ -183,6 +217,7 @@
         wireAutorefiller(panel);
         wireSettings(panel);
         wireAutohunt(panel);
+        wireFastClick(panel);
         startStatusUpdates();
         observeHotbarChanges();
     };
@@ -249,17 +284,31 @@
         };
         wirePotionRefill('#refiller-hp-enabled', 'hpEnabled');
         wirePotionRefill('#refiller-sp-enabled', 'spEnabled');
-        panel.querySelector('#refiller-min').addEventListener('input', event => {
+        panel.querySelector('#refiller-hp-min').addEventListener('input', event => {
             const value = parseInt(event.target.value, 10);
             if (!Number.isNaN(value) && value >= 0) {
-                state.autorefiller.minToRefill = value;
+                state.autorefiller.hpMinToRefill = value;
                 core.saveSettings();
             }
         });
-        panel.querySelector('#refiller-max').addEventListener('input', event => {
+        panel.querySelector('#refiller-sp-min').addEventListener('input', event => {
             const value = parseInt(event.target.value, 10);
             if (!Number.isNaN(value) && value >= 0) {
-                state.autorefiller.maxToBuy = value;
+                state.autorefiller.spMinToRefill = value;
+                core.saveSettings();
+            }
+        });
+        panel.querySelector('#refiller-hp-max').addEventListener('input', event => {
+            const value = parseInt(event.target.value, 10);
+            if (!Number.isNaN(value) && value >= 0) {
+                state.autorefiller.hpMaxToBuy = value;
+                core.saveSettings();
+            }
+        });
+        panel.querySelector('#refiller-sp-max').addEventListener('input', event => {
+            const value = parseInt(event.target.value, 10);
+            if (!Number.isNaN(value) && value >= 0) {
+                state.autorefiller.spMaxToBuy = value;
                 core.saveSettings();
             }
         });
@@ -297,6 +346,27 @@
         panel.querySelector('#autohunt-map').addEventListener('change', event => {
             state.autohunt.map = event.target.value;
             core.saveSettings();
+        });
+    };
+
+    const wireFastClick = (panel) => {
+        panel.querySelector('#fastclick-interval').addEventListener('change', event => {
+            let interval = parseInt(event.target.value, 10);
+            if (Number.isNaN(interval)) interval = 500;
+            interval = Math.max(100, Math.min(10000, interval));
+            state.fastClick.intervalMs = interval;
+            event.target.value = interval;
+            core.updateFastClickInterval();
+            core.saveSettings();
+        });
+
+        panel.querySelectorAll('[data-fastclick-slot]').forEach(checkbox => {
+            checkbox.addEventListener('change', event => {
+                const slot = event.currentTarget.dataset.fastclickSlot;
+                state.fastClick.slots[slot] = event.currentTarget.checked;
+                core.updateFastClickInterval();
+                core.saveSettings();
+            });
         });
     };
 
