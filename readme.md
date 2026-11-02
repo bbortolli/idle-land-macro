@@ -68,14 +68,14 @@ larp-autopot/
 - Só verifica, compra e usa o slot de uma poção quando o respectivo controle estiver ativado
 - Configurável: mínimo para recarregar e máximo para comprar
 - Reutiliza os tipos de poção e slots configurados em Settings
-- Fluxo em fases (`idle → goToShop → openingShop → buying → purchasing → verifyPurchase → closingShop → returning → idle`):
-  1. Verifica quantidades; se abaixo do mínimo → vai para loja
-  2. Clica Vila uma vez → aguarda → clica Loja
+- Fluxo em fases (`idle → preparing → goToShop → openingTown → openingShop → buying → purchasing → settlingPurchases → verifyPurchase → closingShop → returning → idle`):
+  1. Verifica quantidades; se abaixo do mínimo, aguarda de 0,8 a 1,6 s antes de iniciar a ida à loja
+  2. Clica Vila uma vez, aguarda de 1,6 a 2,6 s, clica Loja e espera de 1 a 1,8 s para a interface carregar
   3. Calcula as compras necessárias com os valores de `data-qty` disponíveis, priorizando as maiores quantidades para reduzir cliques (ex.: comprar 190 poções usa 1x100 + 9x10)
-  4. Clica nos botões de compra com 200ms entre cada clique
+  4. Clica nos botões de compra com intervalos variáveis de 0,7 a 1,4 s; depois espera de 1,2 a 2,2 s para a loja atualizar
   5. Confere se as quantidades chegaram ao máximo configurado (aguarda até 10 segundos)
-  6. Clica Loja novamente para fechá-la → aguarda 1 segundo → clica Vila uma vez
-  7. Aguarda a Vila carregar, usa os slots configurados e abre o menu Mapa para selecionar o mapa configurado na aba Autohunt
+  6. Clica Loja novamente para fechá-la → aguarda de 1 a 1,8 s → clica Vila uma vez
+  7. Aguarda de 1,5 a 2,5 s para a Vila carregar, usa os slots configurados e abre o menu Mapa para selecionar o mapa configurado na aba Autohunt
 - Cooldown entre ações: 3000ms
 
 ### 3. Autohunt

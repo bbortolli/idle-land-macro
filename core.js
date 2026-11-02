@@ -7,11 +7,14 @@
     const STORAGE_KEY = 'larpAutopotSettings';
     const SAVE_DEBOUNCE_MS = 750;
     const REFILL_TIMING = {
-        shopOpenMs: 1000,
-        purchaseClickMs: 200,
+        preparationMs: [800, 1600],
+        townToShopMs: [1600, 2600],
+        shopToBuyingMs: [1000, 1800],
+        purchaseClickMs: [700, 1400],
+        afterPurchasesMs: [1200, 2200],
         quantityVerifyTimeoutMs: 10000,
-        shopCloseMs: 1000,
-        townLoadMs: 1000
+        shopCloseMs: [1000, 1800],
+        townLoadMs: [1500, 2500]
     };
 
     const state = {
@@ -47,6 +50,19 @@
     let settingsDirty = false;
 
     const log = (...args) => console.log('[Larp Autopot]', ...args);
+
+    const randomDelay = ([minimum, maximum]) =>
+        Math.floor(Math.random() * (maximum - minimum + 1)) + minimum;
+
+    const schedulePurchaseVerification = () => {
+        purchaseVerificationStartedAt = Date.now();
+        state.autorefiller.phase = 'settlingPurchases';
+        setTimeout(() => {
+            if (state.autorefiller.phase === 'settlingPurchases') {
+                state.autorefiller.phase = 'verifyPurchase';
+            }
+        }, randomDelay(REFILL_TIMING.afterPurchasesMs));
+    };
 
     const getPersistedSettings = () => ({
         autopot: {
@@ -317,20 +333,30 @@
 
             if (needHp || needSp) {
                 log(`Refill needed - HP: ${hpQty} (min ${minToRefill}), SP: ${spQty} (min ${minToRefill})`);
-                state.autorefiller.phase = 'goToShop';
+                state.autorefiller.phase = 'preparing';
                 state.autorefiller.lastAction = now;
+                setTimeout(() => {
+                    if (state.autorefiller.phase === 'preparing') {
+                        state.autorefiller.phase = 'goToShop';
+                    }
+                }, randomDelay(REFILL_TIMING.preparationMs));
             }
             return;
         }
 
         if (phase === 'goToShop') {
-            state.autorefiller.phase = 'openingShop';
+            state.autorefiller.phase = 'openingTown';
             clickMenuButton('town');
             setTimeout(() => {
+                if (state.autorefiller.phase !== 'openingTown') return;
                 clickMenuButton('shop');
-                state.autorefiller.phase = 'buying';
-                state.autorefiller.lastAction = Date.now();
-            }, REFILL_TIMING.shopOpenMs);
+                state.autorefiller.phase = 'openingShop';
+                setTimeout(() => {
+                    if (state.autorefiller.phase !== 'openingShop') return;
+                    state.autorefiller.phase = 'buying';
+                    state.autorefiller.lastAction = Date.now();
+                }, randomDelay(REFILL_TIMING.shopToBuyingMs));
+            }, randomDelay(REFILL_TIMING.townToShopMs));
             return;
         }
 
@@ -362,8 +388,7 @@
                 if (plan === null) {
                     log(`Cannot exactly buy ${amount} ${item.label} potions (${item.potionType}); available buy quantities do not match`);
                     purchaseTargets = [];
-                    purchaseVerificationStartedAt = Date.now();
-                    state.autorefiller.phase = 'verifyPurchase';
+                    schedulePurchaseVerification();
                     return;
                 }
 
@@ -387,8 +412,7 @@
             }
 
             if (purchases.length === 0) {
-                purchaseVerificationStartedAt = Date.now();
-                state.autorefiller.phase = 'verifyPurchase';
+                schedulePurchaseVerification();
                 return;
             }
 
@@ -398,8 +422,7 @@
             const clickNextPurchase = () => {
                 const purchase = purchases[purchaseIndex];
                 if (!clickShopPurchase(purchase.potionType, purchase.quantity)) {
-                    purchaseVerificationStartedAt = Date.now();
-                    state.autorefiller.phase = 'verifyPurchase';
+                    schedulePurchaseVerification();
                     return;
                 }
 
@@ -409,11 +432,10 @@
                     purchaseCount = 0;
                 }
                 if (purchaseIndex < purchases.length) {
-                    setTimeout(clickNextPurchase, REFILL_TIMING.purchaseClickMs);
+                    setTimeout(clickNextPurchase, randomDelay(REFILL_TIMING.purchaseClickMs));
                     return;
                 }
-                purchaseVerificationStartedAt = Date.now();
-                state.autorefiller.phase = 'verifyPurchase';
+                schedulePurchaseVerification();
             };
             clickNextPurchase();
             return;
@@ -449,9 +471,11 @@
             purchaseTargets = [];
             clickMenuButton('shop');
             setTimeout(() => {
+                if (state.autorefiller.phase !== 'closingShop') return;
                 state.autorefiller.phase = 'returning';
                 clickMenuButton('town');
                 setTimeout(() => {
+                    if (state.autorefiller.phase !== 'returning') return;
                     slotsToUse.forEach(slotIndex => {
                         const slot = getHotbarSlot(slotIndex);
                         if (slot) slot.click();
@@ -460,8 +484,8 @@
                     log('Refilling complete');
                     state.autorefiller.phase = 'idle';
                     state.autorefiller.lastAction = Date.now();
-                }, REFILL_TIMING.townLoadMs);
-            }, REFILL_TIMING.shopCloseMs);
+                }, randomDelay(REFILL_TIMING.townLoadMs));
+            }, randomDelay(REFILL_TIMING.shopCloseMs));
         }
     };
 
