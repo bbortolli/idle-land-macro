@@ -49,8 +49,8 @@ larp-autopot/
   - Mapa: `[data-win="travel"]`
   - Loja: `[data-win="shop"]`
 - Itens da loja (`data-item`):
-  - HP: `potion-red`, `potion-red-2`, `potion-red-3`, `potion-red-4`
-  - SP: `potion-blue`, `potion-blue-2`, `potion-blue-3`, `potion-blue-4`
+  - HP: `potion-red` (Poção Vermelha), `potion-red-2` (Poção Vermelha Grande), `potion-red-3` (Poção Carmesim), `potion-red-4` (Elixir Rubro)
+  - SP: `potion-blue` (Poção Azul), `potion-blue-2` (Poção Azul Grande), `potion-blue-3` (Poção Safira), `potion-blue-4` (Elixir de Mana)
 - Botões de compra: `button[data-action="buy"]`, com `data-item` identificando a poção e `data-qty` indicando a quantidade comprada (1, 10 ou 100)
 - Mapas: elementos com `data-map` (por exemplo, `clover_meadow`); o menu de viagem precisa ser aberto antes de selecionar o mapa
 
@@ -59,15 +59,15 @@ larp-autopot/
 ### 1. Autopot
 - Monitora HP e SP via `MutationObserver` + `setInterval` (fallback)
 - Default: HP < 250, SP < 50
-- Ao cair abaixo do threshold, clica no slot configurado em Settings (não simula tecla — usa `.click()` no filho do `#hotbar`)
-- Slots default em Settings: HP = 1, SP = 2
+- Ao cair abaixo do threshold, clica no slot em que o tipo de poção configurado foi detectado (não simula tecla — usa `.click()` no filho do `#hotbar`)
 
 ### 2. Autorefiller
-- Lê quantidade via `.qty` no slot da hotbar
+- Lê a quantidade via `.qty` no slot detectado pelo tipo de poção selecionado
 - Permite ativar/desativar a recarga de poções de HP e SP separadamente
+- Exibe controles de mínimo, máximo e quantidade em seções independentes para HP e SP
 - Só verifica, compra e usa o slot de uma poção quando o respectivo controle estiver ativado
 - Limites mínimo e máximo de refill configuráveis independentemente para HP e SP
-- Reutiliza os tipos de poção e slots configurados em Settings
+- Reutiliza os tipos de poção configurados em Settings
 - Fluxo em fases (`idle → preparing → goToShop → openingTown → openingShop → buying → purchasing → settlingPurchases → verifyPurchase → closingShop → returning → idle`):
   1. Verifica quantidades; se abaixo do mínimo, aguarda de 0,8 a 1,6 s antes de iniciar a ida à loja
   2. Clica Vila uma vez, aguarda de 1,6 a 2,6 s, clica Loja e espera de 1 a 1,8 s para a interface carregar
@@ -81,13 +81,13 @@ larp-autopot/
 ### 3. Autohunt
 - Seleciona o mapa para retomar automaticamente a caça após o refiller
 - Abre primeiro o menu `[data-win="travel"]` (Mapa) e, após ele abrir, clica no elemento `[data-map="<mapa selecionado>"]`
-- Mapas disponíveis: `clover_meadow`, `whisper_woods`, `dewdrop_pond`, `glimmer_cave`, `honeyhill_farm`, `mistmoor_swamp`, `frostpeak`, `sunken_ruins`, `ember_volcano`, `skyreach_spire`, `lunar_garden`, `starfall_abyss`, `crystal_sanctum`, `coral_depths`, `thunder_plateau`, `bone_desert`, `obsidian_forge`, `eternal_glacier`, `mirror_marsh`, `clockwork_citadel`, `dream_grove`, `solar_crown`, `origin_core` e `puffton`
+- Os mapas são exibidos em português: Campos do Trevo, Bosque dos Sussurros, Lagoa do Orvalho, Caverna Cintilante, Colina do Mel, Pântano da Névoa, Pico Gélido, Ruínas Submersas, Vulcão de Brasa, Torre Celeste, Jardim Lunar, Abismo Estelar, Santuário Cristalino, Profundezas de Coral, Planalto dos Trovões, Deserto de Ossos, Forja de Obsidiana, Geleira Eterna, Pântano do Espelho, Cidadela de Engrenagens, Bosque dos Sonhos, Coroa Solar e Núcleo da Origem
 
 ### 4. Settings
 - Taxa de verificação: 200–1000 ms (default 500, com clamp)
-- Slot da hotbar e tipo de poção para HP e SP, configurados somente nesta seção
-- O Autopot e o Autorefiller usam os slots definidos aqui; o Autorefiller também usa os tipos de poção definidos aqui
-- Dropdowns de hotbar auto-sincronizam via `MutationObserver` no `#hotbar`
+- Seleciona o tipo de poção para HP e SP; o slot correspondente é detectado automaticamente na hotbar e exibido ao lado
+- O Autopot e o Autorefiller usam o slot detectado para o tipo de poção selecionado
+- Os nomes exibidos para as poções correspondem aos nomes apresentados na loja do jogo
 
 ### 5. Fastclick
 - Permite ativar cliques repetidos independentemente para cada slot da hotbar de 1 a 9

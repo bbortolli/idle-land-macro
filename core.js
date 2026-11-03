@@ -35,8 +35,6 @@
         },
         settings: {
             checkMs: 500,
-            hpHotbar: '1',
-            spHotbar: '2',
             hpPotionType: 'potion-red',
             spPotionType: 'potion-blue'
         },
@@ -89,8 +87,6 @@
         },
         settings: {
             checkMs: state.settings.checkMs,
-            hpHotbar: state.settings.hpHotbar,
-            spHotbar: state.settings.spHotbar,
             hpPotionType: state.settings.hpPotionType,
             spPotionType: state.settings.spPotionType
         },
@@ -163,12 +159,6 @@
 
         if (Number.isFinite(stored.settings?.checkMs)) {
             state.settings.checkMs = Math.max(200, Math.min(1000, stored.settings.checkMs));
-        }
-        if (/^[1-9]$/.test(stored.settings?.hpHotbar)) {
-            state.settings.hpHotbar = stored.settings.hpHotbar;
-        }
-        if (/^[1-9]$/.test(stored.settings?.spHotbar)) {
-            state.settings.spHotbar = stored.settings.spHotbar;
         }
         if (config.shops.potionTypes.hp.includes(stored.settings?.hpPotionType)) {
             state.settings.hpPotionType = stored.settings.hpPotionType;
@@ -314,12 +304,43 @@
 
     const getHotbarSlot = (index) => getHotbarSlots()[parseInt(index, 10) - 1] || null;
 
+    const getHotbarIndexForPotion = (potionType) => {
+        const potionName = config.shops.potionNames[potionType];
+        const identityAttributes = ['data-item', 'data-item-id', 'data-id', 'data-uid', 'data-type'];
+        const labelAttributes = ['title', 'aria-label', 'alt'];
+        const matchesIdentity = value =>
+            value === potionType || value.endsWith(`:${potionType}`);
+        const matchesLabel = value => value.trim() === potionName;
+
+        for (const [index, slot] of getHotbarSlots().entries()) {
+            const elements = [slot, ...slot.querySelectorAll(
+                '[data-item], [data-item-id], [data-id], [data-uid], [data-type], [title], [aria-label], [alt]'
+            )];
+            const found = elements.some(element =>
+                identityAttributes.some(attribute => {
+                    const value = element.getAttribute(attribute);
+                    return value !== null && matchesIdentity(value);
+                }) || (potionName && labelAttributes.some(attribute => {
+                    const value = element.getAttribute(attribute);
+                    return value !== null && matchesLabel(value);
+                }))
+            );
+            if (found) return String(index + 1);
+        }
+        return null;
+    };
+
     const getPotionQty = (index) => {
         const slot = getHotbarSlot(index);
         const quantityElement = slot && slot.querySelector('.qty');
         if (!quantityElement) return null;
         const quantity = parseInt(quantityElement.textContent, 10);
         return Number.isNaN(quantity) ? null : quantity;
+    };
+
+    const getPotionQtyForType = (potionType) => {
+        const slot = getHotbarIndexForPotion(potionType);
+        return slot === null ? null : getPotionQty(slot);
     };
 
     const updateFastClickInterval = () => {
@@ -412,18 +433,20 @@
         const sp = parseValue(document.getElementById(config.selectors.sp));
 
         if (hp !== null && hp < state.autopot.hpThreshold) {
-            const slot = getHotbarSlot(state.settings.hpHotbar);
+            const hotbarIndex = getHotbarIndexForPotion(state.settings.hpPotionType);
+            const slot = hotbarIndex === null ? null : getHotbarSlot(hotbarIndex);
             if (slot) {
                 slot.click();
-                log(`Autopot HP: ${hp} < ${state.autopot.hpThreshold}, clicked slot ${state.settings.hpHotbar}`);
+                log(`Autopot HP: ${hp} < ${state.autopot.hpThreshold}, clicked slot ${hotbarIndex}`);
             }
         }
 
         if (sp !== null && sp < state.autopot.spThreshold) {
-            const slot = getHotbarSlot(state.settings.spHotbar);
+            const hotbarIndex = getHotbarIndexForPotion(state.settings.spPotionType);
+            const slot = hotbarIndex === null ? null : getHotbarSlot(hotbarIndex);
             if (slot) {
                 slot.click();
-                log(`Autopot SP: ${sp} < ${state.autopot.spThreshold}, clicked slot ${state.settings.spHotbar}`);
+                log(`Autopot SP: ${sp} < ${state.autopot.spThreshold}, clicked slot ${hotbarIndex}`);
             }
         }
     };
@@ -442,8 +465,8 @@
             if (!state.autorefiller.hpEnabled && !state.autorefiller.spEnabled) return;
             if (now - state.autorefiller.lastAction < 3000) return;
 
-            const hpQty = getPotionQty(state.settings.hpHotbar);
-            const spQty = getPotionQty(state.settings.spHotbar);
+            const hpQty = getPotionQtyForType(state.settings.hpPotionType);
+            const spQty = getPotionQtyForType(state.settings.spPotionType);
             const needHp = state.autorefiller.hpEnabled && hpQty !== null && hpQty < hpMinToRefill;
             const needSp = state.autorefiller.spEnabled && spQty !== null && spQty < spMinToRefill;
 
@@ -477,15 +500,15 @@
         }
 
         if (phase === 'buying') {
-            const hpQty = getPotionQty(state.settings.hpHotbar);
-            const spQty = getPotionQty(state.settings.spHotbar);
+            const hpQty = getPotionQtyForType(state.settings.hpPotionType);
+            const spQty = getPotionQtyForType(state.settings.spPotionType);
             const requests = [
                 {
                     label: 'HP',
                     enabled: state.autorefiller.hpEnabled,
                     potionType: state.settings.hpPotionType,
                     qty: hpQty,
-                    slot: state.settings.hpHotbar,
+                    slot: getHotbarIndexForPotion(state.settings.hpPotionType),
                     maxToBuy: hpMaxToBuy
                 },
                 {
@@ -493,12 +516,12 @@
                     enabled: state.autorefiller.spEnabled,
                     potionType: state.settings.spPotionType,
                     qty: spQty,
-                    slot: state.settings.spHotbar,
+                    slot: getHotbarIndexForPotion(state.settings.spPotionType),
                     maxToBuy: spMaxToBuy
                 }
             ].filter(item => {
                 const minQty = item.label === 'HP' ? hpMinToRefill : spMinToRefill;
-                return item.enabled && item.qty !== null && item.qty < minQty;
+                return item.enabled && item.slot !== null && item.qty !== null && item.qty < minQty;
             });
             const purchases = [];
             purchaseTargets = [];
@@ -516,7 +539,7 @@
                 if (amount > 0) {
                     purchaseTargets.push({
                         label: item.label,
-                        slot: item.slot,
+                        potionType: item.potionType,
                         quantity: item.maxToBuy
                     });
                 }
@@ -564,7 +587,7 @@
 
         if (phase === 'verifyPurchase') {
             const quantitiesReady = purchaseTargets.every(target => {
-                const quantity = getPotionQty(target.slot);
+                const quantity = getPotionQtyForType(target.potionType);
                 return quantity !== null && quantity >= target.quantity;
             });
             const verificationExpired = now - purchaseVerificationStartedAt >= REFILL_TIMING.quantityVerifyTimeoutMs;
@@ -573,11 +596,11 @@
             if (!quantitiesReady) {
                 const remaining = purchaseTargets
                     .filter(target => {
-                        const quantity = getPotionQty(target.slot);
+                        const quantity = getPotionQtyForType(target.potionType);
                         return quantity === null || quantity < target.quantity;
                     })
                     .map(target => {
-                        const quantity = getPotionQty(target.slot);
+                        const quantity = getPotionQtyForType(target.potionType);
                         return `${target.label}: ${quantity ?? '?'} / ${target.quantity}`;
                     });
                 log(`Refill quantity check timed out (${remaining.join(', ')})`);
@@ -587,7 +610,9 @@
 
             state.autorefiller.phase = 'closingShop';
             const slotsToUse = quantitiesReady
-                ? purchaseTargets.map(target => target.slot)
+                ? purchaseTargets
+                    .map(target => getHotbarIndexForPotion(target.potionType))
+                    .filter(slot => slot !== null)
                 : [];
             purchaseTargets = [];
             clickMenuButton('shop');
@@ -658,7 +683,9 @@
         config,
         parseValue,
         getHotbarSlots,
+        getHotbarIndexForPotion,
         getPotionQty,
+        getPotionQtyForType,
         updateFastClickInterval,
         saveSettings,
         restartInterval,

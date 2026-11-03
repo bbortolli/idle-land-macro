@@ -6,24 +6,12 @@
 
     const { config, state } = core;
 
-    const buildHotkeyOptions = (selected) => {
-        const slots = core.getHotbarSlots();
-        const count = slots.length > 0 ? Math.min(slots.length, 9) : 9;
-        return Array.from({ length: count }, (_, index) => {
-            const key = String(index + 1);
-            return `<option value="${key}" ${key === selected ? 'selected' : ''}>${key}</option>`;
-        }).join('');
-    };
-
     const buildPotionTypeOptions = (selected, type) => config.shops.potionTypes[type].map(potion =>
-        `<option value="${potion}" ${potion === selected ? 'selected' : ''}>${potion}</option>`
+        `<option value="${potion}" ${potion === selected ? 'selected' : ''}>${config.shops.potionNames[potion]}</option>`
     ).join('');
 
     const buildMapOptions = (selected) => config.maps.map(map =>
-        `<option value="${map}" ${map === selected ? 'selected' : ''}>${map
-            .split('_')
-            .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-            .join(' ')}</option>`
+        `<option value="${map}" ${map === selected ? 'selected' : ''}>${config.mapNames[map]}</option>`
     ).join('');
 
     const build = () => {
@@ -106,35 +94,36 @@
                 </div>
 
                 <div role="tabpanel" data-tab-panel="autorefiller" style="display:none;">
-                    <div style="${sectionStyle('#9b59b6')}">
+                    <div style="font-weight:700;color:#9b59b6;margin-bottom:8px;">Autorefiller</div>
+                    <div style="${sectionStyle('#ff6b6b')}">
                         <div style="${rowStyle};margin-bottom:8px;">
-                            <span style="color:#9b59b6;font-weight:700;">Autorefiller</span>
-                        </div>
-                        <div style="${rowStyle}">
                             <input type="checkbox" id="refiller-hp-enabled" ${state.autorefiller.hpEnabled ? 'checked' : ''}>
-                            <label for="refiller-hp-enabled" style="color:#ff6b6b;">HP potion</label>
-                            <input type="checkbox" id="refiller-sp-enabled" ${state.autorefiller.spEnabled ? 'checked' : ''}>
-                            <label for="refiller-sp-enabled" style="color:#6bb5ff;">SP potion</label>
+                            <label for="refiller-hp-enabled" style="color:#ff6b6b;font-weight:700;">HP potion</label>
                         </div>
                         <div style="${rowStyle}">
-                            <span style="color:#ff6b6b;">HP min:</span>
+                            <span>Min:</span>
                             <input type="number" id="refiller-hp-min" value="${state.autorefiller.hpMinToRefill}" style="${inputStyle}">
                         </div>
                         <div style="${rowStyle}">
-                            <span style="color:#6bb5ff;">SP min:</span>
+                            <span>Max:</span>
+                            <input type="number" id="refiller-hp-max" value="${state.autorefiller.hpMaxToBuy}" style="${inputStyle}">
+                        </div>
+                        <div id="refiller-hp-info" style="font-size:10px;color:#aaa;margin-top:4px;"></div>
+                    </div>
+                    <div style="${sectionStyle('#6bb5ff')}">
+                        <div style="${rowStyle};margin-bottom:8px;">
+                            <input type="checkbox" id="refiller-sp-enabled" ${state.autorefiller.spEnabled ? 'checked' : ''}>
+                            <label for="refiller-sp-enabled" style="color:#6bb5ff;font-weight:700;">SP potion</label>
+                        </div>
+                        <div style="${rowStyle}">
+                            <span>Min:</span>
                             <input type="number" id="refiller-sp-min" value="${state.autorefiller.spMinToRefill}" style="${inputStyle}">
                         </div>
                         <div style="${rowStyle}">
-                            <span style="color:#ff6b6b;">HP max:</span>
-                            <input type="number" id="refiller-hp-max" value="${state.autorefiller.hpMaxToBuy}" style="${inputStyle}">
-                        </div>
-                        <div style="${rowStyle}">
-                            <span style="color:#6bb5ff;">SP max:</span>
+                            <span>Max:</span>
                             <input type="number" id="refiller-sp-max" value="${state.autorefiller.spMaxToBuy}" style="${inputStyle}">
                         </div>
-                        <div id="refiller-qty" style="font-size:10px;color:#889;margin-top:4px;">
-                            Qty: HP ${core.getPotionQty(state.settings.hpHotbar) ?? '?'} / SP ${core.getPotionQty(state.settings.spHotbar) ?? '?'}
-                        </div>
+                        <div id="refiller-sp-info" style="font-size:10px;color:#aaa;margin-top:4px;"></div>
                     </div>
                 </div>
 
@@ -179,28 +168,18 @@
                             <span>ms</span>
                         </div>
                         <div style="${rowStyle}">
-                            <span style="color:#ff6b6b;">HP hotbar:</span>
-                            <select id="settings-hp-hotbar" style="${selectStyle}">
-                                ${buildHotkeyOptions(state.settings.hpHotbar)}
-                            </select>
-                        </div>
-                        <div style="${rowStyle}">
-                            <span style="color:#6bb5ff;">SP hotbar:</span>
-                            <select id="settings-sp-hotbar" style="${selectStyle}">
-                                ${buildHotkeyOptions(state.settings.spHotbar)}
-                            </select>
-                        </div>
-                        <div style="${rowStyle}">
                             <span style="color:#ff6b6b;">HP potion:</span>
                             <select id="settings-hp-type" style="${selectStyle}">
                                 ${buildPotionTypeOptions(state.settings.hpPotionType, 'hp')}
                             </select>
+                            <span id="settings-hp-slot" style="color:#aaa;"></span>
                         </div>
                         <div style="${rowStyle}">
                             <span style="color:#6bb5ff;">SP potion:</span>
                             <select id="settings-sp-type" style="${selectStyle}">
                                 ${buildPotionTypeOptions(state.settings.spPotionType, 'sp')}
                             </select>
+                            <span id="settings-sp-slot" style="color:#aaa;"></span>
                         </div>
                     </div>
                 </div>
@@ -218,6 +197,7 @@
         wireSettings(panel);
         wireAutohunt(panel);
         wireFastClick(panel);
+        refreshPotionDetails();
         startStatusUpdates();
         observeHotbarChanges();
     };
@@ -324,20 +304,14 @@
             core.restartInterval();
             core.saveSettings();
         });
-        panel.querySelector('#settings-hp-hotbar').addEventListener('change', event => {
-            state.settings.hpHotbar = event.target.value;
-            core.saveSettings();
-        });
-        panel.querySelector('#settings-sp-hotbar').addEventListener('change', event => {
-            state.settings.spHotbar = event.target.value;
-            core.saveSettings();
-        });
         panel.querySelector('#settings-hp-type').addEventListener('change', event => {
             state.settings.hpPotionType = event.target.value;
+            refreshPotionDetails();
             core.saveSettings();
         });
         panel.querySelector('#settings-sp-type').addEventListener('change', event => {
             state.settings.spPotionType = event.target.value;
+            refreshPotionDetails();
             core.saveSettings();
         });
     };
@@ -375,29 +349,39 @@
             const hp = core.parseValue(document.getElementById(config.selectors.hp));
             const sp = core.parseValue(document.getElementById(config.selectors.sp));
             const status = document.getElementById('larp-status');
-            const quantities = document.getElementById('refiller-qty');
             if (status) status.textContent = `HP: ${hp ?? '–'} / SP: ${sp ?? '–'}`;
-            if (quantities) {
-                const hpQty = core.getPotionQty(state.settings.hpHotbar);
-                const spQty = core.getPotionQty(state.settings.spHotbar);
-                quantities.textContent = `Qty: HP ${hpQty ?? '?'} / SP ${spQty ?? '?'}`;
-            }
+            refreshPotionDetails();
         }, 500);
+    };
+
+    const refreshPotionDetails = () => {
+        [
+            { type: 'hp', potion: state.settings.hpPotionType },
+            { type: 'sp', potion: state.settings.spPotionType }
+        ].forEach(({ type, potion }) => {
+            const slot = core.getHotbarIndexForPotion(potion);
+            const quantity = core.getPotionQtyForType(potion);
+            const slotElement = document.getElementById(`settings-${type}-slot`);
+            const refillInfo = document.getElementById(`refiller-${type}-info`);
+            const potionName = config.shops.potionNames[potion];
+            if (slotElement) slotElement.textContent = slot ? `Slot ${slot}` : 'Not found';
+            if (refillInfo) {
+                refillInfo.textContent = `${potionName} · Slot ${slot ?? '–'} · Qty: ${quantity ?? '?'}`;
+            }
+        });
     };
 
     const observeHotbarChanges = () => {
         const hotbar = document.getElementById(config.selectors.hotbar);
         if (!hotbar) return;
 
-        const observer = new MutationObserver(() => {
-            ['settings-hp-hotbar', 'settings-sp-hotbar'].forEach(id => {
-                const select = document.getElementById(id);
-                if (!select) return;
-                const current = select.value;
-                select.innerHTML = buildHotkeyOptions(current);
-            });
+        const observer = new MutationObserver(refreshPotionDetails);
+        observer.observe(hotbar, {
+            childList: true,
+            subtree: true,
+            attributes: true,
+            attributeFilter: ['data-item', 'data-item-id', 'data-id', 'data-uid', 'data-type', 'title', 'aria-label', 'alt']
         });
-        observer.observe(hotbar, { childList: true });
     };
 
     namespace.ui = { build };
