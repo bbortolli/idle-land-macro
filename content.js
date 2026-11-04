@@ -2,8 +2,8 @@
     'use strict';
 
     if (!namespace.core || !namespace.ui) {
-        throw new Error('Larp Autopot modules did not load in the expected order');
+        throw new Error('Larp Automate V2 modules did not load in the expected order');
     }
 
     namespace.core.initialize(namespace.ui.build);
-})(globalThis.LarpAutopot = globalThis.LarpAutopot || {});
+})(globalThis.LarpAutomate = globalThis.LarpAutomate || {});

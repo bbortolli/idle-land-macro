@@ -2,20 +2,19 @@
     'use strict';
 
     const config = namespace.config;
-    if (!config) throw new Error('Larp Autopot config must load before core.js');
+    if (!config) throw new Error('Larp Automate V2 config must load before core.js');
 
     const STORAGE_KEY = 'larpAutopotSettings';
+    const BRIDGE_CHANNEL = 'larp-automate-v2';
     const SAVE_DEBOUNCE_MS = 750;
     const REFILL_TIMING = {
         preparationMs: [800, 1600],
-        townToShopMs: [1600, 2600],
-        shopToBuyingMs: [1000, 1800],
         purchaseClickMs: [700, 1400],
         afterPurchasesMs: [1200, 2200],
-        quantityVerifyTimeoutMs: 10000,
-        shopCloseMs: [1000, 1800],
-        townLoadMs: [1500, 2500]
+        quantityVerifyTimeoutMs: 10000
     };
+    const AUTOHUNT_CHECK_INTERVAL_MS = 30000;
+    const METRICS_SAMPLE_INTERVAL_MS = 3000;
 
     const state = {
         autopot: {
@@ -39,13 +38,33 @@
             spPotionType: 'potion-blue'
         },
         autohunt: {
-            map: 'clover_meadow'
+            map: 'clover_meadow',
+            returnToMapEnabled: false
         },
-        fastClick: {
+        fastSkill: {
             intervalMs: 500,
-            slots: Object.fromEntries(
-                Array.from({ length: 9 }, (_, index) => [String(index + 1), false])
-            )
+            skills: {}
+        },
+        player: {
+            name: '',
+            job: '',
+            baseLevel: null,
+            jobLevel: null,
+            map: '',
+            baseExp: null,
+            skills: {},
+            hotbar: []
+        },
+        metrics: {
+            baseExp: null,
+            xpPerHour: null,
+            samples: [],
+            startedAt: Date.now(),
+            elapsedSeconds: 0
+        },
+        logs: [],
+        connection: {
+            online: false
         },
         observer: null,
         intervalId: null
@@ -54,9 +73,87 @@
     let purchaseVerificationStartedAt = 0;
     let saveSettingsTimeout = null;
     let settingsDirty = false;
-    let fastClickIntervalId = null;
+    let fastSkillIntervalId = null;
+    let gameRequestId = 0;
+    let websocketLogSequence = 0;
+    let lastAutohuntCheckAt = 0;
+    let autohuntRequestPending = false;
+    let pendingGameActions = 0;
+    let xpSample = null;
+    const pendingGameRequests = new Map();
+    const lastPotionUse = new Map();
+    const reportedActionErrors = new Set();
+    const MAX_WEBSOCKET_LOGS = 100;
 
-    const log = (...args) => console.log('[Larp Autopot]', ...args);
+    const log = (...args) => console.log('[Larp Automate V2]', ...args);
+
+    window.addEventListener('message', event => {
+        const response = event.data;
+        if (event.source !== window || response?.channel !== BRIDGE_CHANNEL) return;
+
+        if (response.type === 'websocket-log') {
+            if (!['ENVIADO', 'RECEBIDO'].includes(response.direction) ||
+                typeof response.messageType !== 'string') return;
+            state.logs.push({
+                id: ++websocketLogSequence,
+                direction: response.direction,
+                messageType: response.messageType,
+                timestamp: new Date().toLocaleTimeString()
+            });
+            if (state.logs.length > MAX_WEBSOCKET_LOGS) state.logs.shift();
+            return;
+        }
+
+        if (response.type === 'game-state') {
+            updateGameState(response.player);
+            return;
+        }
+
+        if (response.type !== 'response' || typeof response.requestId !== 'string') return;
+
+        const pending = pendingGameRequests.get(response.requestId);
+        if (!pending) return;
+        clearTimeout(pending.timeout);
+        pendingGameRequests.delete(response.requestId);
+        pending.resolve({
+            ok: response.ok === true,
+            error: response.error || null
+        });
+    });
+
+    const requestGameBridge = (action) => new Promise(resolve => {
+        const requestId = `${Date.now()}-${++gameRequestId}`;
+        const timeout = setTimeout(() => {
+            pendingGameRequests.delete(requestId);
+            resolve({ ok: false, error: 'bridge-timeout' });
+        }, 1500);
+        pendingGameRequests.set(requestId, { resolve, timeout });
+        window.postMessage({
+            channel: BRIDGE_CHANNEL,
+            type: 'request',
+            requestId,
+            action
+        }, location.origin);
+    });
+
+    const checkGameConnection = async () => {
+        const result = await requestGameBridge({ type: 'status' });
+        state.connection.online = result.ok;
+        return result;
+    };
+
+    const sendGameAction = async (action) => {
+        pendingGameActions++;
+        try {
+            const result = await requestGameBridge(action);
+            if (result.error === 'socket-not-open') {
+                state.connection.online = false;
+            }
+            return result;
+        } finally {
+            pendingGameActions--;
+        }
+    };
 
     const randomDelay = ([minimum, maximum]) =>
         Math.floor(Math.random() * (maximum - minimum + 1)) + minimum;
@@ -91,13 +188,55 @@
             spPotionType: state.settings.spPotionType
         },
         autohunt: {
-            map: state.autohunt.map
+            map: state.autohunt.map,
+            returnToMapEnabled: state.autohunt.returnToMapEnabled
         },
-        fastClick: {
-            intervalMs: state.fastClick.intervalMs,
-            slots: { ...state.fastClick.slots }
+        fastSkill: {
+            intervalMs: state.fastSkill.intervalMs,
+            skills: { ...state.fastSkill.skills }
         }
     });
+
+    const updateGameState = (player) => {
+        if (!player || typeof player !== 'object') return;
+        const playerName = typeof player.name === 'string' ? player.name : '';
+        if (state.player.name && playerName && state.player.name !== playerName) {
+            xpSample = null;
+            state.metrics.samples = [];
+            state.metrics.xpPerHour = null;
+        }
+        state.player.name = playerName;
+        state.player.job = typeof player.job === 'string' ? player.job : '';
+        state.player.map = typeof player.map === 'string' ? player.map : '';
+        state.player.baseLevel = Number.isFinite(player.baseLevel) ? player.baseLevel : null;
+        state.player.jobLevel = Number.isFinite(player.jobLevel) ? player.jobLevel : null;
+        state.player.baseExp = Number.isFinite(player.baseExp) ? player.baseExp : null;
+        state.player.skills = player.skills && typeof player.skills === 'object'
+            ? player.skills
+            : {};
+        state.player.hotbar = Array.isArray(player.hotbar) ? player.hotbar.slice(0, 9) : [];
+
+        if (state.player.baseExp === null) return;
+        const now = Date.now();
+        state.metrics.baseExp = state.player.baseExp;
+        state.metrics.elapsedSeconds = Math.floor((now - state.metrics.startedAt) / 1000);
+        if (!xpSample || state.player.baseExp < xpSample.baseExp) {
+            xpSample = { baseExp: state.player.baseExp, timestamp: now };
+            state.metrics.samples = [];
+            state.metrics.xpPerHour = null;
+            return;
+        }
+
+        const elapsed = now - xpSample.timestamp;
+        if (elapsed < METRICS_SAMPLE_INTERVAL_MS) return;
+        const hourlyRate = Math.max(0, (state.player.baseExp - xpSample.baseExp) * 3600000 / elapsed);
+        state.metrics.samples.push(hourlyRate);
+        if (state.metrics.samples.length > 6) state.metrics.samples.shift();
+        state.metrics.xpPerHour = Math.round(
+            state.metrics.samples.reduce((sum, sample) => sum + sample, 0) / state.metrics.samples.length
+        );
+        xpSample = { baseExp: state.player.baseExp, timestamp: now };
+    };
 
     const applyStoredSettings = (stored) => {
         if (!stored || typeof stored !== 'object') {
@@ -169,13 +308,16 @@
         if (config.maps.includes(stored.autohunt?.map)) {
             state.autohunt.map = stored.autohunt.map;
         }
-        if (Number.isFinite(stored.fastClick?.intervalMs)) {
-            state.fastClick.intervalMs = Math.max(100, Math.min(10000, stored.fastClick.intervalMs));
+        if (typeof stored.autohunt?.returnToMapEnabled === 'boolean') {
+            state.autohunt.returnToMapEnabled = stored.autohunt.returnToMapEnabled;
         }
-        if (stored.fastClick?.slots && typeof stored.fastClick.slots === 'object') {
-            Object.keys(state.fastClick.slots).forEach(slot => {
-                if (typeof stored.fastClick.slots[slot] === 'boolean') {
-                    state.fastClick.slots[slot] = stored.fastClick.slots[slot];
+        if (Number.isFinite(stored.fastSkill?.intervalMs)) {
+            state.fastSkill.intervalMs = Math.max(100, Math.min(10000, stored.fastSkill.intervalMs));
+        }
+        if (stored.fastSkill?.skills && typeof stored.fastSkill.skills === 'object') {
+            Object.entries(stored.fastSkill.skills).forEach(([skill, enabled]) => {
+                if (/^[a-z0-9_-]+$/i.test(skill) && typeof enabled === 'boolean') {
+                    state.fastSkill.skills[skill] = enabled;
                 }
             });
         }
@@ -305,6 +447,9 @@
     const getHotbarSlot = (index) => getHotbarSlots()[parseInt(index, 10) - 1] || null;
 
     const getHotbarIndexForPotion = (potionType) => {
+        const serverSlot = state.player.hotbar.findIndex(slot => slot?.item === potionType);
+        if (serverSlot >= 0) return String(serverSlot + 1);
+
         const potionName = config.shops.potionNames[potionType];
         const identityAttributes = ['data-item', 'data-item-id', 'data-id', 'data-uid', 'data-type'];
         const labelAttributes = ['title', 'aria-label', 'alt'];
@@ -343,49 +488,50 @@
         return slot === null ? null : getPotionQty(slot);
     };
 
-    const updateFastClickInterval = () => {
-        if (fastClickIntervalId !== null) {
-            clearInterval(fastClickIntervalId);
-            fastClickIntervalId = null;
-        }
-
-        const enabledSlots = Object.keys(state.fastClick.slots)
-            .filter(slot => state.fastClick.slots[slot]);
-        if (enabledSlots.length === 0) return;
-
-        fastClickIntervalId = setInterval(() => {
-            enabledSlots.forEach(slotIndex => {
-                const slot = getHotbarSlot(slotIndex);
-                if (slot) slot.click();
+    const getEligibleSkills = () => {
+        const learnedSkills = state.player.skills;
+        const skills = new Map();
+        state.player.hotbar.forEach((slot, index) => {
+            if (slot?.auto !== true || typeof slot.skill !== 'string' ||
+                !Number.isFinite(learnedSkills[slot.skill]) || learnedSkills[slot.skill] <= 0) return;
+            skills.set(slot.skill, {
+                id: slot.skill,
+                level: learnedSkills[slot.skill],
+                slot: index + 1
             });
-        }, state.fastClick.intervalMs);
+        });
+        return [...skills.values()];
     };
 
-    const clickMenuButton = (key) => {
-        const menu = config.menus[key];
-        if (!menu) return false;
-        const element = menu.id
-            ? document.getElementById(menu.id)
-            : document.querySelector(menu.selector);
-        if (!element) {
-            log(`Menu not found: ${menu.label}`);
-            return false;
+    const updateFastSkillInterval = () => {
+        if (fastSkillIntervalId !== null) {
+            clearInterval(fastSkillIntervalId);
+            fastSkillIntervalId = null;
         }
-        element.click();
-        log(`Clicked menu: ${menu.label}`);
-        return true;
+        if (!Object.values(state.fastSkill.skills).some(Boolean)) return;
+
+        fastSkillIntervalId = setInterval(() => {
+            if (!state.connection.online) return;
+            getEligibleSkills()
+                .filter(skill => state.fastSkill.skills[skill.id])
+                .forEach(skill => {
+                    const errorKey = `skill:${skill.id}`;
+                    sendGameAction({ type: 'cast', skill: skill.id }).then(result => {
+                        if (!result.ok && !reportedActionErrors.has(errorKey)) {
+                            reportedActionErrors.add(errorKey);
+                            log(`Fast Skill ${skill.id} failed: ${result.error}`);
+                        } else if (result.ok) {
+                            reportedActionErrors.delete(errorKey);
+                        }
+                    });
+                });
+        }, state.fastSkill.intervalMs);
     };
 
-    const getShopBuyButtons = (potionType) => Array.from(
-        document.querySelectorAll(config.shops.buyButton)
-    ).filter(element => element.dataset.item === potionType);
-
-    const buildShopPurchasePlan = (potionType, amount) => {
-        const quantities = getShopBuyButtons(potionType)
-            .map(element => parseInt(element.dataset.qty, 10))
+    const buildPurchasePlan = (amount) => {
+        const availableQuantities = [...new Set(config.shops.purchaseQuantities)]
             .filter(quantity => Number.isInteger(quantity) && quantity > 0)
             .sort((a, b) => b - a);
-        const availableQuantities = [...new Set(quantities)];
         const plan = [];
         let remaining = amount;
 
@@ -398,57 +544,41 @@
         return remaining === 0 ? plan : null;
     };
 
-    const clickShopPurchase = (potionType, quantity) => {
-        const button = getShopBuyButtons(potionType)
-            .find(element => parseInt(element.dataset.qty, 10) === quantity);
-        if (!button) {
-            log(`Shop buy button not found: ${potionType} x${quantity}`);
-            return false;
+    const sendRefillPurchase = async (purchase) => {
+        const result = await sendGameAction({
+            type: 'buy',
+            item: purchase.potionType,
+            qty: purchase.quantity
+        });
+        if (!result.ok) {
+            log(`Purchase failed (${purchase.potionType} x${purchase.quantity}): ${result.error}`);
         }
-        button.click();
-        return true;
-    };
-
-    const returnToHunt = () => {
-        if (!clickMenuButton('map')) {
-            log('Cannot return to hunt: map menu could not be opened');
-            return;
-        }
-
-        setTimeout(() => {
-            const map = document.querySelector(`[data-map="${state.autohunt.map}"]`);
-            if (!map) {
-                log(`Hunt map not found: ${state.autohunt.map}`);
-                return;
-            }
-            map.click();
-            log(`Returning to hunt: ${state.autohunt.map}`);
-        }, 500);
+        return result.ok;
     };
 
     const checkAutopot = () => {
-        if (!state.autopot.enabled) return;
+        if (!state.autopot.enabled || !state.connection.online) return;
 
         const hp = parseValue(document.getElementById(config.selectors.hp));
         const sp = parseValue(document.getElementById(config.selectors.sp));
 
-        if (hp !== null && hp < state.autopot.hpThreshold) {
-            const hotbarIndex = getHotbarIndexForPotion(state.settings.hpPotionType);
-            const slot = hotbarIndex === null ? null : getHotbarSlot(hotbarIndex);
-            if (slot) {
-                slot.click();
-                log(`Autopot HP: ${hp} < ${state.autopot.hpThreshold}, clicked slot ${hotbarIndex}`);
-            }
-        }
-
-        if (sp !== null && sp < state.autopot.spThreshold) {
-            const hotbarIndex = getHotbarIndexForPotion(state.settings.spPotionType);
-            const slot = hotbarIndex === null ? null : getHotbarSlot(hotbarIndex);
-            if (slot) {
-                slot.click();
-                log(`Autopot SP: ${sp} < ${state.autopot.spThreshold}, clicked slot ${hotbarIndex}`);
-            }
-        }
+        const requests = [
+            { label: 'HP', value: hp, threshold: state.autopot.hpThreshold, potion: state.settings.hpPotionType },
+            { label: 'SP', value: sp, threshold: state.autopot.spThreshold, potion: state.settings.spPotionType }
+        ];
+        requests.forEach(({ label, value, threshold, potion }) => {
+            if (value === null || value >= threshold) return;
+            const now = Date.now();
+            if (now - (lastPotionUse.get(potion) || 0) < 1000) return;
+            lastPotionUse.set(potion, now);
+            sendGameAction({ type: 'useItem', item: potion }).then(result => {
+                if (!result.ok) {
+                    log(`Autopot ${label} failed: ${result.error}`);
+                    return;
+                }
+                log(`Autopot ${label}: ${value} < ${threshold}`);
+            });
+        });
     };
 
     const checkAutorefiller = () => {
@@ -462,7 +592,8 @@
         } = state.autorefiller;
 
         if (phase === 'idle') {
-            if (!state.autorefiller.hpEnabled && !state.autorefiller.spEnabled) return;
+            if (!state.connection.online ||
+                (!state.autorefiller.hpEnabled && !state.autorefiller.spEnabled)) return;
             if (now - state.autorefiller.lastAction < 3000) return;
 
             const hpQty = getPotionQtyForType(state.settings.hpPotionType);
@@ -476,26 +607,10 @@
                 state.autorefiller.lastAction = now;
                 setTimeout(() => {
                     if (state.autorefiller.phase === 'preparing') {
-                        state.autorefiller.phase = 'goToShop';
+                        state.autorefiller.phase = 'buying';
                     }
                 }, randomDelay(REFILL_TIMING.preparationMs));
             }
-            return;
-        }
-
-        if (phase === 'goToShop') {
-            state.autorefiller.phase = 'openingTown';
-            clickMenuButton('town');
-            setTimeout(() => {
-                if (state.autorefiller.phase !== 'openingTown') return;
-                clickMenuButton('shop');
-                state.autorefiller.phase = 'openingShop';
-                setTimeout(() => {
-                    if (state.autorefiller.phase !== 'openingShop') return;
-                    state.autorefiller.phase = 'buying';
-                    state.autorefiller.lastAction = Date.now();
-                }, randomDelay(REFILL_TIMING.shopToBuyingMs));
-            }, randomDelay(REFILL_TIMING.townToShopMs));
             return;
         }
 
@@ -508,7 +623,6 @@
                     enabled: state.autorefiller.hpEnabled,
                     potionType: state.settings.hpPotionType,
                     qty: hpQty,
-                    slot: getHotbarIndexForPotion(state.settings.hpPotionType),
                     maxToBuy: hpMaxToBuy
                 },
                 {
@@ -516,21 +630,25 @@
                     enabled: state.autorefiller.spEnabled,
                     potionType: state.settings.spPotionType,
                     qty: spQty,
-                    slot: getHotbarIndexForPotion(state.settings.spPotionType),
                     maxToBuy: spMaxToBuy
                 }
             ].filter(item => {
                 const minQty = item.label === 'HP' ? hpMinToRefill : spMinToRefill;
-                return item.enabled && item.slot !== null && item.qty !== null && item.qty < minQty;
+                if (!item.enabled) return false;
+                if (item.qty === null) {
+                    log(`Cannot refill ${item.label}: selected potion is not detected in the hotbar`);
+                    return false;
+                }
+                return item.qty < minQty;
             });
             const purchases = [];
             purchaseTargets = [];
 
             for (const item of requests) {
                 const amount = Math.max(0, item.maxToBuy - item.qty);
-                const plan = buildShopPurchasePlan(item.potionType, amount);
+                const plan = buildPurchasePlan(amount);
                 if (plan === null) {
-                    log(`Cannot exactly buy ${amount} ${item.label} potions (${item.potionType}); available buy quantities do not match`);
+                    log(`Cannot exactly buy ${amount} ${item.label} potions (${item.potionType}) with quantities ${config.shops.purchaseQuantities.join(', ')}`);
                     purchaseTargets = [];
                     schedulePurchaseVerification();
                     return;
@@ -563,9 +681,10 @@
             state.autorefiller.phase = 'purchasing';
             let purchaseIndex = 0;
             let purchaseCount = 0;
-            const clickNextPurchase = () => {
+            const sendNextPurchase = async () => {
                 const purchase = purchases[purchaseIndex];
-                if (!clickShopPurchase(purchase.potionType, purchase.quantity)) {
+                const sent = await sendRefillPurchase(purchase);
+                if (!sent) {
                     schedulePurchaseVerification();
                     return;
                 }
@@ -576,12 +695,14 @@
                     purchaseCount = 0;
                 }
                 if (purchaseIndex < purchases.length) {
-                    setTimeout(clickNextPurchase, randomDelay(REFILL_TIMING.purchaseClickMs));
+                    setTimeout(() => {
+                        if (state.autorefiller.phase === 'purchasing') sendNextPurchase();
+                    }, randomDelay(REFILL_TIMING.purchaseClickMs));
                     return;
                 }
                 schedulePurchaseVerification();
             };
-            clickNextPurchase();
+            sendNextPurchase();
             return;
         }
 
@@ -608,36 +729,56 @@
                 log('Refill quantities verified');
             }
 
-            state.autorefiller.phase = 'closingShop';
-            const slotsToUse = quantitiesReady
-                ? purchaseTargets
-                    .map(target => getHotbarIndexForPotion(target.potionType))
-                    .filter(slot => slot !== null)
-                : [];
             purchaseTargets = [];
-            clickMenuButton('shop');
-            setTimeout(() => {
-                if (state.autorefiller.phase !== 'closingShop') return;
-                state.autorefiller.phase = 'returning';
-                clickMenuButton('town');
-                setTimeout(() => {
-                    if (state.autorefiller.phase !== 'returning') return;
-                    slotsToUse.forEach(slotIndex => {
-                        const slot = getHotbarSlot(slotIndex);
-                        if (slot) slot.click();
-                    });
-                    returnToHunt();
-                    log('Refilling complete');
-                    state.autorefiller.phase = 'idle';
-                    state.autorefiller.lastAction = Date.now();
-                }, randomDelay(REFILL_TIMING.townLoadMs));
-            }, randomDelay(REFILL_TIMING.shopCloseMs));
+            state.autorefiller.phase = 'returning';
+            sendGameAction({ type: 'setMap', map: state.autohunt.map }).then(result => {
+                if (!result.ok) {
+                    log(`Could not return to hunt (${state.autohunt.map}): ${result.error}`);
+                } else {
+                    log(`Refill complete; returning to ${state.autohunt.map}`);
+                }
+                lastAutohuntCheckAt = Date.now();
+                state.autorefiller.phase = 'idle';
+                state.autorefiller.lastAction = Date.now();
+            });
         }
+    };
+
+    const checkAutohunt = () => {
+        const now = Date.now();
+        if (!state.autohunt.returnToMapEnabled ||
+            !state.connection.online ||
+            state.autorefiller.phase !== 'idle' ||
+            pendingGameActions > 0 ||
+            autohuntRequestPending ||
+            now - lastAutohuntCheckAt < AUTOHUNT_CHECK_INTERVAL_MS ||
+            !state.player.map ||
+            state.player.map === state.autohunt.map) return;
+
+        lastAutohuntCheckAt = now;
+        autohuntRequestPending = true;
+        log(`Current map is ${state.player.map}; returning to ${state.autohunt.map}`);
+        sendGameAction({ type: 'setMap', map: state.autohunt.map }).then(result => {
+            if (!result.ok) log(`Could not return to hunt (${state.autohunt.map}): ${result.error}`);
+            autohuntRequestPending = false;
+        });
+    };
+
+    const resetMetrics = () => {
+        const now = Date.now();
+        state.metrics.startedAt = now;
+        state.metrics.elapsedSeconds = 0;
+        state.metrics.samples = [];
+        state.metrics.xpPerHour = null;
+        xpSample = Number.isFinite(state.player.baseExp)
+            ? { baseExp: state.player.baseExp, timestamp: now }
+            : null;
     };
 
     const check = () => {
         checkAutopot();
         checkAutorefiller();
+        checkAutohunt();
     };
 
     const restartInterval = () => {
@@ -666,14 +807,14 @@
             });
             restartInterval();
             check();
-            log('Larp Autopot v1.0 started');
+            log('Larp Automate V2 started');
         };
         boot();
     };
 
     const initialize = (buildUI) => {
         loadSettings(() => {
-            updateFastClickInterval();
+            updateFastSkillInterval();
             start(buildUI);
         });
     };
@@ -686,9 +827,13 @@
         getHotbarIndexForPotion,
         getPotionQty,
         getPotionQtyForType,
-        updateFastClickInterval,
+        getEligibleSkills,
+        checkGameConnection,
+        sendGameAction,
+        updateFastSkillInterval,
+        resetMetrics,
         saveSettings,
         restartInterval,
         initialize
     };
-})(globalThis.LarpAutopot = globalThis.LarpAutopot || {});
+})(globalThis.LarpAutomate = globalThis.LarpAutomate || {});

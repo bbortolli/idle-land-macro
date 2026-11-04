@@ -1,32 +1,42 @@
-# Resumo do Projeto: Larp Autopot (Extensão Chrome)
+# Larp Automate V2
 
 ## Objetivo
-Extensão Chrome (Manifest V3) que funciona **apenas** em `https://www.cuteidleland.com/` para automatizar o uso de poções (Autopot) e a compra/recarga de poções (Autorefiller) em um jogo idle.
+Extensão Chrome (Manifest V3) para automatizar poções, reposição e retorno à caça em `https://www.cuteidleland.com/`.
 
 ## Estrutura de Arquivos
 ```
-larp-autopot/
+larp-automate-v2/
 ├── manifest.json
 ├── content.js          # Inicialização da extensão
+├── ws-bridge.js        # Relay seguro para a API WebSocket do jogo
 ├── config/
-│   └── game.js         # Seletores, menus, loja, poções e mapas do jogo
+│   └── game.js         # Seletores, poções, quantidades de compra e mapas
 ├── core.js             # Estado, autopot, refiller e ações de jogo
 └── ui/
-    └── panel.js        # Painel, abas e eventos da interface
+    ├── panel.js        # Painel, abas e eventos da interface
+    └── panel.css       # Tema escuro e dourado inspirado no jogo
 ```
 
 ## manifest.json (atual)
 ```json
 {
   "manifest_version": 3,
-  "name": "Larp Autopot",
-  "version": "1.0",
-  "description": "Autopot e Autorefiller para Cute Idle Land",
+  "name": "Larp Automate V2",
+  "version": "2.0.0",
+  "description": "Automação de poções e caça para Cute Idle Land",
+  "minimum_chrome_version": "111",
   "permissions": ["storage"],
   "host_permissions": ["https://www.cuteidleland.com/*"],
   "content_scripts": [
     {
       "matches": ["https://www.cuteidleland.com/*"],
+      "js": ["ws-bridge.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": ["https://www.cuteidleland.com/*"],
+      "css": ["ui/panel.css"],
       "js": [
         "config/game.js",
         "core.js",
@@ -42,77 +52,79 @@ larp-autopot/
 ## Seletores e Elementos Conhecidos
 - HP HUD: `#hud-hp-text` → texto tipo `"Vida 930 / 1008"` → valor antes da `/`
 - SP HUD: `#hud-sp-text` → mesmo formato
-- Hotbar: `#hotbar` → filhos são os slots (índice 0 = slot "1")
+- Hotbar: `#hotbar` → filhos são os slots (índice 0 = slot "1"); cada botão de item expõe seu tipo em `data-item`
 - Quantidade de poção no slot: filho com classe `.qty`
-- Botões de menu (configurados em `config/game.js`, dentro de `menus`):
-  - Vila: `id="btn-town"`
-  - Mapa: `[data-win="travel"]`
-  - Loja: `[data-win="shop"]`
 - Itens da loja (`data-item`):
   - HP: `potion-red` (Poção Vermelha), `potion-red-2` (Poção Vermelha Grande), `potion-red-3` (Poção Carmesim), `potion-red-4` (Elixir Rubro)
   - SP: `potion-blue` (Poção Azul), `potion-blue-2` (Poção Azul Grande), `potion-blue-3` (Poção Safira), `potion-blue-4` (Elixir de Mana)
-- Botões de compra: `button[data-action="buy"]`, com `data-item` identificando a poção e `data-qty` indicando a quantidade comprada (1, 10 ou 100)
-- Mapas: elementos com `data-map` (por exemplo, `clover_meadow`); o menu de viagem precisa ser aberto antes de selecionar o mapa
+- Tipos de compra: mensagens WebSocket `buy` com quantidade 1, 10 ou 100
+- Mapas: mensagens WebSocket `setMap`; `puffton` é a Vila, não uma opção de caça
+- WebSocket exposto pelo jogo: `window.fv.net.ws`
 
 ## Funcionalidades Implementadas
 
 ### 1. Autopot
 - Monitora HP e SP via `MutationObserver` + `setInterval` (fallback)
 - Default: HP < 250, SP < 50
-- Ao cair abaixo do threshold, clica no slot em que o tipo de poção configurado foi detectado (não simula tecla — usa `.click()` no filho do `#hotbar`)
+- Ao cair abaixo do threshold, envia `useItem` pela conexão WebSocket do jogo
+- O UID da instância é obtido de `window.fv.ui.inventory` pelo tipo de item, sem configuração manual
 
 ### 2. Autorefiller
 - Lê a quantidade via `.qty` no slot detectado pelo tipo de poção selecionado
 - Permite ativar/desativar a recarga de poções de HP e SP separadamente
 - Exibe controles de mínimo, máximo e quantidade em seções independentes para HP e SP
-- Só verifica, compra e usa o slot de uma poção quando o respectivo controle estiver ativado
+- Só verifica e compra uma poção quando o respectivo controle estiver ativado
 - Limites mínimo e máximo de refill configuráveis independentemente para HP e SP
 - Reutiliza os tipos de poção configurados em Settings
-- Fluxo em fases (`idle → preparing → goToShop → openingTown → openingShop → buying → purchasing → settlingPurchases → verifyPurchase → closingShop → returning → idle`):
-  1. Verifica quantidades; se abaixo do mínimo, aguarda de 0,8 a 1,6 s antes de iniciar a ida à loja
-  2. Clica Vila uma vez, aguarda de 1,6 a 2,6 s, clica Loja e espera de 1 a 1,8 s para a interface carregar
-  3. Calcula as compras necessárias com os valores de `data-qty` disponíveis, priorizando as maiores quantidades para reduzir cliques (ex.: comprar 190 poções usa 1x100 + 9x10)
-  4. Clica nos botões de compra com intervalos variáveis de 0,7 a 1,4 s; depois espera de 1,2 a 2,2 s para a loja atualizar
-  5. Confere se as quantidades chegaram ao máximo configurado (aguarda até 10 segundos)
-  6. Clica Loja novamente para fechá-la → aguarda de 1 a 1,8 s → clica Vila uma vez
-  7. Aguarda de 1,5 a 2,5 s para a Vila carregar, usa os slots configurados e abre o menu Mapa para selecionar o mapa configurado na aba Autohunt
+- Faz compras diretamente pelo WebSocket, sem precisar abrir Vila ou Loja
+- Fluxo em fases (`idle → preparing → buying → purchasing → settlingPurchases → verifyPurchase → returning → idle`):
+  1. Verifica quantidades; se abaixo do mínimo, aguarda de 0,8 a 1,6 s antes de iniciar a reposição
+  2. Calcula as quantidades 1, 10 e 100 para reduzir mensagens (ex.: 190 usa 1×100 + 9×10)
+  3. Envia cada compra com intervalo variável de 0,7 a 1,4 s; depois aguarda de 1,2 a 2,2 s
+  4. Confere se as quantidades chegaram ao máximo configurado (aguarda até 10 segundos)
+  5. Retorna ao mapa configurado usando `setMap`
 - Cooldown entre ações: 3000ms
 
 ### 3. Autohunt
 - Seleciona o mapa para retomar automaticamente a caça após o refiller
-- Abre primeiro o menu `[data-win="travel"]` (Mapa) e, após ele abrir, clica no elemento `[data-map="<mapa selecionado>"]`
+- Opção para voltar ao mapa selecionado caso o personagem saia dele
+- A verificação acontece a cada 30 segundos, somente com o fluxo de recarga ocioso e sem outra troca de mapa pendente
+- Viaja diretamente com `setMap`; `puffton` não aparece na lista por ser a Vila
 - Os mapas são exibidos em português: Campos do Trevo, Bosque dos Sussurros, Lagoa do Orvalho, Caverna Cintilante, Colina do Mel, Pântano da Névoa, Pico Gélido, Ruínas Submersas, Vulcão de Brasa, Torre Celeste, Jardim Lunar, Abismo Estelar, Santuário Cristalino, Profundezas de Coral, Planalto dos Trovões, Deserto de Ossos, Forja de Obsidiana, Geleira Eterna, Pântano do Espelho, Cidadela de Engrenagens, Bosque dos Sonhos, Coroa Solar e Núcleo da Origem
 
 ### 4. Settings
-- Taxa de verificação: 200–1000 ms (default 500, com clamp)
-- Seleciona o tipo de poção para HP e SP; o slot correspondente é detectado automaticamente na hotbar e exibido ao lado
-- O Autopot e o Autorefiller usam o slot detectado para o tipo de poção selecionado
+- Taxa de verificação: 200–1000 ms (padrão 500, com limite automático)
+- Seleciona o tipo de poção para HP e SP na aba Poções; o Autopot usa o WebSocket e não depende da hotbar
+- O Autorefiller usa `settings.hotbar` recebido no estado do jogo para localizar a quantidade da poção na interface
 - Os nomes exibidos para as poções correspondem aos nomes apresentados na loja do jogo
 
-### 5. Fastclick
-- Permite ativar cliques repetidos independentemente para cada slot da hotbar de 1 a 9
-- Usa os mesmos slots da hotbar do jogo que o Autopot
-- Intervalo compartilhado e configurável de 100 a 10000 ms (default 500 ms)
-- Cada slot habilitado recebe um clique por intervalo; os slots desabilitados não são tocados
+### 5. Personagem e métricas
+- Recebe os estados `state`/`sync` do WebSocket para exibir nome, classe e níveis do personagem
+- Exibe XP/Hora calculada pela variação de `player.baseExp` em janelas de pelo menos 3 segundos; mostra a média móvel das últimas seis amostras
+- Contador de tempo desde o início/reset da seção e botão para zerar as métricas
+
+### 6. Logs
+- Exibe os tipos das mensagens WebSocket enviadas e recebidas, sem guardar ou exibir o conteúdo completo
+- Exemplo: `ENVIADO - cast` e `RECEBIDO - Sync`
+- Mantém no máximo 100 eventos em memória e permite limpar a lista
+
+### 7. Fastkill
+- Lista skills aprendidas e marcadas como automáticas em `player.settings.hotbar`
+- Permite selecionar skills para uso repetido e configurar o intervalo de 100 a 10000 ms
+- Envia ações WebSocket como `{"type":"cast","skill":"backstab"}` e `{"type":"cast","skill":"shadow_step"}`
 
 ## Detalhes Técnicos Importantes
-- Sem simulação de teclado — cliques diretos nos elementos evitam problemas de `isTrusted` em jogos canvas
-- UI fixa à direita: painel `#larp-autopot-panel` com `z-index: 2147483647`
+- O painel usa as cores, fontes e molduras escuras/douradas observadas na página do jogo (Barlow, Cinzel, azul-marinho e dourado)
+- UI fixa à direita: painel `#larp-automate-v2-panel` com `z-index: 2147483647`
 - Dupla verificação: `MutationObserver` (reage na hora) + `setInterval` (fallback, taxa configurável)
 - Clamp de valores: rate forçado entre 200–1000ms mesmo se usuário digitar fora
-- `config/game.js` centraliza os seletores do jogo, menus, itens de loja, tipos de poção e mapas
-- Os scripts de conteúdo são carregados na ordem configurada no `manifest.json`: configuração → lógica → interface → inicialização
-- Logs com prefixo `[Larp Autopot]`
-- Para adicionar um botão de menu, edite `menus` em `config/game.js`:
-
-```javascript
-menus: {
-    town: { id: 'btn-town', label: 'Vila' },
-    map:  { selector: '[data-win="travel"]', label: 'Mapa' },
-    shop: { selector: '[data-win="shop"]',   label: 'Loja' },
-    // bank: { selector: '[data-win="bank"]', label: 'Banco' }
-}
-```
+- A extensão usa um relay no mundo principal (`ws-bridge.js`) porque o content script isolado não acessa `window.fv`
+- O relay valida ações e envia JSON por `window.fv.net.ws`; para `useItem`, resolve o UID no inventário
+- O relay observa mensagens WebSocket do jogo, encaminhando somente os dados de personagem usados pela interface e o tipo de cada mensagem nos logs
+- A interface mostra se a conexão WebSocket está disponível; as ações falham com mensagem no console se o jogo não estiver conectado ou o item não estiver no inventário
+- `config/game.js` centraliza os tipos de poção, quantidades de compra, seletores e mapas
+- Os scripts do content script são declarados no `manifest.json`; o relay roda no mundo principal desde `document_start`
+- Logs com prefixo `[Larp Automate V2]`
 
 ## Persistência das Configurações
 - As opções são carregadas primeiro de `chrome.storage.local` antes da interface e da macro iniciarem, e também gravadas em `chrome.storage.sync`.
@@ -121,7 +133,8 @@ menus: {
 - Configurações antigas com controles ou limites compartilhados do Autorefiller são migradas automaticamente para HP e SP.
 - Apenas configurações são persistidas; o estado temporário do fluxo de recarga começa em `idle` quando a página é carregada.
 - Recarregue a extensão existente em `chrome://extensions/` mantendo o mesmo diretório e ID para preservar os dados locais. Remover e instalar como uma extensão diferente cria outro armazenamento.
-- Se a leitura ou gravação falhar, o erro é registrado no console com o prefixo `[Larp Autopot]`.
+- A chave interna de armazenamento permanece `larpAutopotSettings` para preservar as configurações já salvas na V1.
+- Se a leitura ou gravação falhar, o erro é registrado no console com o prefixo `[Larp Automate V2]`.
 
 ## Como Instalar (para testes)
 1. Manter a estrutura completa da extensão conforme a seção [Estrutura de Arquivos](#estrutura-de-arquivos)

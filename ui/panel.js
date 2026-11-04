@@ -2,7 +2,7 @@
     'use strict';
 
     const core = namespace.core;
-    if (!core) throw new Error('Larp Autopot core must load before ui/panel.js');
+    if (!core) throw new Error('Larp Automate V2 core must load before ui/panel.js');
 
     const { config, state } = core;
 
@@ -15,28 +15,11 @@
     ).join('');
 
     const build = () => {
-        if (document.getElementById('larp-autopot-panel')) return;
+        if (document.getElementById('larp-automate-v2-panel')) return;
 
         const panel = document.createElement('div');
-        panel.id = 'larp-autopot-panel';
-        panel.style.cssText = `
-            position: fixed;
-            top: 50%;
-            right: 12px;
-            transform: translateY(-50%);
-            z-index: 2147483647;
-            background: rgba(20, 20, 28, 0.95);
-            color: #eee;
-            font: 12px/1.4 system-ui, sans-serif;
-            padding: 12px;
-            border-radius: 8px;
-            border: 1px solid #444;
-            box-shadow: 0 4px 14px rgba(0,0,0,0.6);
-            width: 240px;
-            max-height: 90vh;
-            overflow-y: auto;
-            user-select: none;
-        `;
+        panel.id = 'larp-automate-v2-panel';
+        panel.className = 'lam-panel';
 
         const sectionStyle = (color) => `
             border: 1px solid ${color};
@@ -48,143 +31,171 @@
         const rowStyle = 'display:flex;align-items:center;gap:6px;margin-bottom:6px;flex-wrap:wrap;';
         const inputStyle = 'width:55px;padding:2px 4px;background:#2a2a33;color:#eee;border:1px solid #555;border-radius:4px;';
         const selectStyle = 'padding:2px;background:#2a2a33;color:#eee;border:1px solid #555;border-radius:4px;';
-        const fastClickOptions = Object.keys(state.fastClick.slots).map(slot => `
-            <label style="display:flex;align-items:center;gap:3px;padding:5px 7px;background:#2a2a33;border:1px solid #555;border-radius:4px;">
-                <input type="checkbox" data-fastclick-slot="${slot}" ${state.fastClick.slots[slot] ? 'checked' : ''}>
-                ${slot}
-            </label>
-        `).join('');
-
         panel.innerHTML = `
-            <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;">
-                <span style="font-weight:700;font-size:14px;color:#ffd700;">Larp Autopot v1.0</span>
-                <button id="larp-minimize" type="button" aria-label="Minimize panel" aria-expanded="true"
+            <div class="lam-header" style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;">
+                <span class="lam-brand" style="font-weight:700;font-size:14px;color:#ffd700;">Larp Automate V2</span>
+                <button id="larp-minimize" type="button" aria-label="Minimizar painel" aria-expanded="true"
                     style="padding:0 6px;background:#2a2a33;color:#eee;border:1px solid #555;border-radius:4px;cursor:pointer;">−</button>
             </div>
             <div id="larp-panel-content">
-                <div role="tablist" aria-label="Macro sections"
+                <div role="tablist" aria-label="Seções da macro"
                     style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px;border-bottom:1px solid #444;padding-bottom:6px;">
-                    <button type="button" role="tab" data-tab="autopot" aria-selected="true"
-                        style="flex:1;padding:5px 2px;background:#3a3a46;color:#ffd700;border:1px solid #555;border-radius:4px;cursor:pointer;">Autopot</button>
+                    <button type="button" role="tab" data-tab="character" aria-selected="true"
+                        style="flex:1;padding:5px 2px;background:#3a3a46;color:#ffd700;border:1px solid #555;border-radius:4px;cursor:pointer;">Personagem</button>
+                    <button type="button" role="tab" data-tab="autopot" aria-selected="false"
+                        style="flex:1;padding:5px 2px;background:#22222a;color:#aaa;border:1px solid #444;border-radius:4px;cursor:pointer;">Poções</button>
                     <button type="button" role="tab" data-tab="autorefiller" aria-selected="false"
-                        style="flex:1;padding:5px 2px;background:#22222a;color:#aaa;border:1px solid #444;border-radius:4px;cursor:pointer;">Refill</button>
+                        style="flex:1;padding:5px 2px;background:#22222a;color:#aaa;border:1px solid #444;border-radius:4px;cursor:pointer;">Refiller</button>
                     <button type="button" role="tab" data-tab="autohunt" aria-selected="false"
                         style="flex:1;padding:5px 2px;background:#22222a;color:#aaa;border:1px solid #444;border-radius:4px;cursor:pointer;">Hunt</button>
-                    <button type="button" role="tab" data-tab="fastclick" aria-selected="false"
-                        style="flex:1;padding:5px 2px;background:#22222a;color:#aaa;border:1px solid #444;border-radius:4px;cursor:pointer;">Fastclick</button>
+                    <button type="button" role="tab" data-tab="fastskill" aria-selected="false"
+                        style="flex:1;padding:5px 2px;background:#22222a;color:#aaa;border:1px solid #444;border-radius:4px;cursor:pointer;">Fastkill</button>
+                    <button type="button" role="tab" data-tab="metrics" aria-selected="false"
+                        style="flex:1;padding:5px 2px;background:#22222a;color:#aaa;border:1px solid #444;border-radius:4px;cursor:pointer;">Métricas</button>
+                    <button type="button" role="tab" data-tab="logs" aria-selected="false"
+                        style="flex:1;padding:5px 2px;background:#22222a;color:#aaa;border:1px solid #444;border-radius:4px;cursor:pointer;">Logs</button>
                     <button type="button" role="tab" data-tab="settings" aria-selected="false"
-                        style="flex:1;padding:5px 2px;background:#22222a;color:#aaa;border:1px solid #444;border-radius:4px;cursor:pointer;">Settings</button>
+                        style="flex:1;padding:5px 2px;background:#22222a;color:#aaa;border:1px solid #444;border-radius:4px;cursor:pointer;">Ajustes</button>
+                </div>
+
+                <div role="tabpanel" data-tab-panel="character">
+                    <div class="lam-section lam-character" style="${sectionStyle('#c8a24e')}">
+                        <div style="font-weight:700;margin-bottom:8px;color:#e6c77a;">Personagem</div>
+                        <div id="character-summary" class="lam-character-summary">Aguardando sincronização do jogo</div>
+                    </div>
                 </div>
 
                 <div role="tabpanel" data-tab-panel="autopot">
-                    <div style="${sectionStyle('#ff6b6b')}">
+                    <div class="lam-section lam-hp" style="${sectionStyle('#ff6b6b')}">
                         <div style="${rowStyle};margin-bottom:8px;">
                             <input type="checkbox" id="autopot-enabled" ${state.autopot.enabled ? 'checked' : ''}>
-                            <span style="color:#ff6b6b;font-weight:700;">Autopot</span>
+                            <span style="color:#ff6b6b;font-weight:700;">Poções automáticas</span>
                         </div>
                         <div style="${rowStyle}">
-                            <span style="color:#ff6b6b;">HP</span><span>Below:</span>
+                            <span style="color:#ff6b6b;">HP</span><span>Abaixo de:</span>
                             <input type="number" id="autopot-hp-thr" value="${state.autopot.hpThreshold}" style="${inputStyle}">
+                            <select id="settings-hp-type" aria-label="Poção de HP" style="${selectStyle}">
+                                ${buildPotionTypeOptions(state.settings.hpPotionType, 'hp')}
+                            </select>
                         </div>
                         <div style="${rowStyle}">
-                            <span style="color:#6bb5ff;">SP</span><span>Below:</span>
+                            <span style="color:#6bb5ff;">SP</span><span>Abaixo de:</span>
                             <input type="number" id="autopot-sp-thr" value="${state.autopot.spThreshold}" style="${inputStyle}">
+                            <select id="settings-sp-type" aria-label="Poção de SP" style="${selectStyle}">
+                                ${buildPotionTypeOptions(state.settings.spPotionType, 'sp')}
+                            </select>
                         </div>
                     </div>
                 </div>
 
-                <div role="tabpanel" data-tab-panel="autorefiller" style="display:none;">
-                    <div style="font-weight:700;color:#9b59b6;margin-bottom:8px;">Autorefiller</div>
-                    <div style="${sectionStyle('#ff6b6b')}">
+                <div role="tabpanel" data-tab-panel="autorefiller" hidden>
+                    <div class="lam-refill-title" style="font-weight:700;color:#9b59b6;margin-bottom:8px;">Reposição de poções</div>
+                    <div class="lam-section lam-hp" style="${sectionStyle('#ff6b6b')}">
                         <div style="${rowStyle};margin-bottom:8px;">
                             <input type="checkbox" id="refiller-hp-enabled" ${state.autorefiller.hpEnabled ? 'checked' : ''}>
-                            <label for="refiller-hp-enabled" style="color:#ff6b6b;font-weight:700;">HP potion</label>
+                            <label for="refiller-hp-enabled" style="color:#ff6b6b;font-weight:700;">Poção de HP</label>
                         </div>
                         <div style="${rowStyle}">
-                            <span>Min:</span>
+                            <span>Mínimo:</span>
                             <input type="number" id="refiller-hp-min" value="${state.autorefiller.hpMinToRefill}" style="${inputStyle}">
                         </div>
                         <div style="${rowStyle}">
-                            <span>Max:</span>
+                            <span>Máximo:</span>
                             <input type="number" id="refiller-hp-max" value="${state.autorefiller.hpMaxToBuy}" style="${inputStyle}">
                         </div>
                         <div id="refiller-hp-info" style="font-size:10px;color:#aaa;margin-top:4px;"></div>
                     </div>
-                    <div style="${sectionStyle('#6bb5ff')}">
+                    <div class="lam-section lam-sp" style="${sectionStyle('#6bb5ff')}">
                         <div style="${rowStyle};margin-bottom:8px;">
                             <input type="checkbox" id="refiller-sp-enabled" ${state.autorefiller.spEnabled ? 'checked' : ''}>
-                            <label for="refiller-sp-enabled" style="color:#6bb5ff;font-weight:700;">SP potion</label>
+                            <label for="refiller-sp-enabled" style="color:#6bb5ff;font-weight:700;">Poção de SP</label>
                         </div>
                         <div style="${rowStyle}">
-                            <span>Min:</span>
+                            <span>Mínimo:</span>
                             <input type="number" id="refiller-sp-min" value="${state.autorefiller.spMinToRefill}" style="${inputStyle}">
                         </div>
                         <div style="${rowStyle}">
-                            <span>Max:</span>
+                            <span>Máximo:</span>
                             <input type="number" id="refiller-sp-max" value="${state.autorefiller.spMaxToBuy}" style="${inputStyle}">
                         </div>
                         <div id="refiller-sp-info" style="font-size:10px;color:#aaa;margin-top:4px;"></div>
                     </div>
                 </div>
 
-                <div role="tabpanel" data-tab-panel="autohunt" style="display:none;">
-                    <div style="${sectionStyle('#58b368')}">
-                        <div style="font-weight:700;margin-bottom:8px;color:#58b368;">Autohunt</div>
+                <div role="tabpanel" data-tab-panel="autohunt" hidden>
+                    <div class="lam-section lam-world" style="${sectionStyle('#58b368')}">
+                        <div style="font-weight:700;margin-bottom:8px;color:#58b368;">Caça automática</div>
                         <div style="${rowStyle}">
-                            <label for="autohunt-map">Map:</label>
+                            <label for="autohunt-map">Mapa:</label>
                             <select id="autohunt-map" style="${selectStyle};max-width:160px;">
                                 ${buildMapOptions(state.autohunt.map)}
                             </select>
                         </div>
+                        <div style="${rowStyle}">
+                            <input type="checkbox" id="autohunt-return-enabled"
+                                ${state.autohunt.returnToMapEnabled ? 'checked' : ''}>
+                            <label for="autohunt-return-enabled">Voltar automaticamente se sair do mapa</label>
+                        </div>
                         <div style="font-size:10px;color:#889;margin-top:4px;">
-                            Returns to this map after refilling.
+                            Verifica a cada 30 segundos. Pausa durante a reposição.
                         </div>
                     </div>
                 </div>
 
-                <div role="tabpanel" data-tab-panel="fastclick" style="display:none;">
-                    <div style="${sectionStyle('#e6a23c')}">
-                        <div style="font-weight:700;margin-bottom:8px;color:#e6a23c;">Fastclick</div>
+                <div role="tabpanel" data-tab-panel="metrics" hidden>
+                    <div class="lam-section lam-metrics" style="${sectionStyle('#58b368')}">
+                        <div style="font-weight:700;margin-bottom:8px;color:#58b368;">Experiência</div>
+                        <div>XP por hora: <strong id="metrics-xp-hour">Aguardando dados</strong></div>
+                        <div>EXP base: <strong id="metrics-base-exp">–</strong></div>
+                        <div style="${rowStyle};margin-top:8px;">
+                            <span>Tempo:</span><strong id="metrics-elapsed">00:00:00</strong>
+                            <button id="metrics-reset" type="button" style="padding:3px 7px;">Resetar</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div role="tabpanel" data-tab-panel="logs" hidden>
+                    <div class="lam-section lam-logs" style="${sectionStyle('#8b9bb4')}">
+                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+                            <span style="font-weight:700;color:#c5d0df;">WebSocket</span>
+                            <button id="websocket-logs-clear" type="button" style="padding:3px 7px;">Limpar</button>
+                        </div>
+                        <div id="websocket-logs" class="lam-log-list">Aguardando mensagens</div>
+                    </div>
+                </div>
+
+                <div role="tabpanel" data-tab-panel="fastskill" hidden>
+                    <div class="lam-section lam-action" style="${sectionStyle('#e6a23c')}">
+                        <div style="font-weight:700;margin-bottom:8px;color:#e6a23c;">Fastkill</div>
                         <div style="${rowStyle}">
-                            <span>Interval:</span>
-                            <input type="number" id="fastclick-interval" value="${state.fastClick.intervalMs}"
+                            <span>Intervalo:</span>
+                            <input type="number" id="fastskill-interval" value="${state.fastSkill.intervalMs}"
                                 min="100" max="10000" step="50" style="${inputStyle}">
                             <span>ms</span>
                         </div>
-                        <div style="font-size:10px;color:#aaa;margin-bottom:6px;">Select hotbar slots to click repeatedly:</div>
-                        <div style="display:flex;flex-wrap:wrap;gap:5px;">
-                            ${fastClickOptions}
+                        <div style="font-size:10px;color:#aaa;margin-bottom:6px;">
+                            Skills aprendidas e marcadas como automáticas na hotbar:
+                        </div>
+                        <div id="fastskill-options" class="lam-fastskill-options">
+                            Aguardando sincronização do jogo
                         </div>
                     </div>
                 </div>
 
-                <div role="tabpanel" data-tab-panel="settings" style="display:none;">
-                    <div style="${sectionStyle('#666')}">
-                        <div style="font-weight:700;margin-bottom:8px;color:#aaa;">Settings</div>
+                <div role="tabpanel" data-tab-panel="settings" hidden>
+                    <div class="lam-section lam-settings" style="${sectionStyle('#666')}">
+                        <div style="font-weight:700;margin-bottom:8px;color:#aaa;">Ajustes</div>
                         <div style="${rowStyle}">
-                            <span>Check rate:</span>
+                            <span>Verificação:</span>
                             <input type="number" id="settings-rate" value="${state.settings.checkMs}"
                                 min="200" max="1000" step="50" style="${inputStyle}">
                             <span>ms</span>
                         </div>
-                        <div style="${rowStyle}">
-                            <span style="color:#ff6b6b;">HP potion:</span>
-                            <select id="settings-hp-type" style="${selectStyle}">
-                                ${buildPotionTypeOptions(state.settings.hpPotionType, 'hp')}
-                            </select>
-                            <span id="settings-hp-slot" style="color:#aaa;"></span>
-                        </div>
-                        <div style="${rowStyle}">
-                            <span style="color:#6bb5ff;">SP potion:</span>
-                            <select id="settings-sp-type" style="${selectStyle}">
-                                ${buildPotionTypeOptions(state.settings.spPotionType, 'sp')}
-                            </select>
-                            <span id="settings-sp-slot" style="color:#aaa;"></span>
-                        </div>
                     </div>
                 </div>
-                <div id="larp-status" style="font-size:11px;color:#9aa;border-top:1px solid #333;padding-top:8px;text-align:center;">
-                    HP: – / SP: –
+                <div id="larp-status" class="lam-status">HP: – / SP: –</div>
+                <div id="larp-connection-status" class="lam-connection" role="status">
+                    <span class="lam-connection-dot"></span>Aguardando conexão com o jogo
                 </div>
             </div>
         `;
@@ -196,8 +207,11 @@
         wireAutorefiller(panel);
         wireSettings(panel);
         wireAutohunt(panel);
-        wireFastClick(panel);
+        wireFastSkill(panel);
+        wireLogs(panel);
+        wireMetrics(panel);
         refreshPotionDetails();
+        refreshGameData(panel);
         startStatusUpdates();
         observeHotbarChanges();
     };
@@ -209,11 +223,9 @@
                 panel.querySelectorAll('[data-tab]').forEach(button => {
                     const selected = button.dataset.tab === selectedTab;
                     button.setAttribute('aria-selected', String(selected));
-                    button.style.background = selected ? '#3a3a46' : '#22222a';
-                    button.style.color = selected ? '#ffd700' : '#aaa';
                 });
                 panel.querySelectorAll('[data-tab-panel]').forEach(tabPanel => {
-                    tabPanel.style.display = tabPanel.dataset.tabPanel === selectedTab ? '' : 'none';
+                    tabPanel.hidden = tabPanel.dataset.tabPanel !== selectedTab;
                 });
             });
         });
@@ -222,11 +234,11 @@
     const wireMinimize = (panel) => {
         panel.querySelector('#larp-minimize').addEventListener('click', event => {
             const content = panel.querySelector('#larp-panel-content');
-            const minimized = content.style.display !== 'none';
-            content.style.display = minimized ? 'none' : '';
-            panel.style.width = minimized ? 'auto' : '240px';
+            const minimized = !content.hidden;
+            content.hidden = minimized;
+            panel.classList.toggle('lam-minimized', minimized);
             event.currentTarget.textContent = minimized ? '+' : '−';
-            event.currentTarget.setAttribute('aria-label', minimized ? 'Expand panel' : 'Minimize panel');
+            event.currentTarget.setAttribute('aria-label', minimized ? 'Expandir painel' : 'Minimizar painel');
             event.currentTarget.setAttribute('aria-expanded', String(!minimized));
         });
     };
@@ -249,6 +261,16 @@
                 state.autopot.spThreshold = value;
                 core.saveSettings();
             }
+        });
+        panel.querySelector('#settings-hp-type').addEventListener('change', event => {
+            state.settings.hpPotionType = event.target.value;
+            refreshPotionDetails();
+            core.saveSettings();
+        });
+        panel.querySelector('#settings-sp-type').addEventListener('change', event => {
+            state.settings.spPotionType = event.target.value;
+            refreshPotionDetails();
+            core.saveSettings();
         });
     };
 
@@ -304,16 +326,6 @@
             core.restartInterval();
             core.saveSettings();
         });
-        panel.querySelector('#settings-hp-type').addEventListener('change', event => {
-            state.settings.hpPotionType = event.target.value;
-            refreshPotionDetails();
-            core.saveSettings();
-        });
-        panel.querySelector('#settings-sp-type').addEventListener('change', event => {
-            state.settings.spPotionType = event.target.value;
-            refreshPotionDetails();
-            core.saveSettings();
-        });
     };
 
     const wireAutohunt = (panel) => {
@@ -321,37 +333,73 @@
             state.autohunt.map = event.target.value;
             core.saveSettings();
         });
+        panel.querySelector('#autohunt-return-enabled').addEventListener('change', event => {
+            state.autohunt.returnToMapEnabled = event.target.checked;
+            core.saveSettings();
+        });
     };
 
-    const wireFastClick = (panel) => {
-        panel.querySelector('#fastclick-interval').addEventListener('change', event => {
+    const wireFastSkill = (panel) => {
+        panel.querySelector('#fastskill-interval').addEventListener('change', event => {
             let interval = parseInt(event.target.value, 10);
             if (Number.isNaN(interval)) interval = 500;
             interval = Math.max(100, Math.min(10000, interval));
-            state.fastClick.intervalMs = interval;
+            state.fastSkill.intervalMs = interval;
             event.target.value = interval;
-            core.updateFastClickInterval();
+            core.updateFastSkillInterval();
             core.saveSettings();
         });
 
-        panel.querySelectorAll('[data-fastclick-slot]').forEach(checkbox => {
-            checkbox.addEventListener('change', event => {
-                const slot = event.currentTarget.dataset.fastclickSlot;
-                state.fastClick.slots[slot] = event.currentTarget.checked;
-                core.updateFastClickInterval();
-                core.saveSettings();
-            });
+        panel.querySelector('#fastskill-options').addEventListener('change', event => {
+            const checkbox = event.target.closest('[data-fastskill-id]');
+            if (!checkbox) return;
+            state.fastSkill.skills[checkbox.dataset.fastskillId] = checkbox.checked;
+            core.updateFastSkillInterval();
+            core.saveSettings();
+        });
+    };
+
+    const wireLogs = (panel) => {
+        panel.querySelector('#websocket-logs-clear').addEventListener('click', () => {
+            state.logs.length = 0;
+            refreshGameData(panel);
+        });
+    };
+
+    const wireMetrics = (panel) => {
+        panel.querySelector('#metrics-reset').addEventListener('click', () => {
+            core.resetMetrics();
+            refreshGameData(panel);
         });
     };
 
     const startStatusUpdates = () => {
+        let checkingConnection = false;
+        const refreshConnection = async () => {
+            if (checkingConnection) return;
+            checkingConnection = true;
+            const result = await core.checkGameConnection();
+            const connection = document.getElementById('larp-connection-status');
+            if (connection) {
+                connection.classList.toggle('is-online', result.ok);
+                connection.innerHTML = `<span class="lam-connection-dot"></span>${result.ok
+                    ? 'WebSocket conectado'
+                    : 'Aguardando conexão com o jogo'}`;
+            }
+            checkingConnection = false;
+        };
+
         setInterval(() => {
             const hp = core.parseValue(document.getElementById(config.selectors.hp));
             const sp = core.parseValue(document.getElementById(config.selectors.sp));
             const status = document.getElementById('larp-status');
             if (status) status.textContent = `HP: ${hp ?? '–'} / SP: ${sp ?? '–'}`;
             refreshPotionDetails();
+            const panel = document.getElementById('larp-automate-v2-panel');
+            if (panel) refreshGameData(panel);
         }, 500);
+        refreshConnection();
+        setInterval(refreshConnection, 1500);
     };
 
     const refreshPotionDetails = () => {
@@ -359,16 +407,98 @@
             { type: 'hp', potion: state.settings.hpPotionType },
             { type: 'sp', potion: state.settings.spPotionType }
         ].forEach(({ type, potion }) => {
-            const slot = core.getHotbarIndexForPotion(potion);
             const quantity = core.getPotionQtyForType(potion);
-            const slotElement = document.getElementById(`settings-${type}-slot`);
             const refillInfo = document.getElementById(`refiller-${type}-info`);
             const potionName = config.shops.potionNames[potion];
-            if (slotElement) slotElement.textContent = slot ? `Slot ${slot}` : 'Not found';
             if (refillInfo) {
-                refillInfo.textContent = `${potionName} · Slot ${slot ?? '–'} · Qty: ${quantity ?? '?'}`;
+                refillInfo.textContent = `${potionName} · Qty: ${quantity ?? '?'}`;
             }
         });
+    };
+
+    const formatNumber = value => Number.isFinite(value)
+        ? new Intl.NumberFormat('pt-BR').format(value)
+        : '–';
+
+    const formatJob = job => job
+        ? job.replace(/[_-]+/g, ' ').replace(/\b\w/g, letter => letter.toLocaleUpperCase())
+        : '–';
+
+    const refreshGameData = (panel) => {
+        const { player, metrics, logs } = state;
+        const summary = panel.querySelector('#character-summary');
+        if (summary) {
+            summary.textContent = player.name
+                ? `${player.name}\nClasse: ${formatJob(player.job)}\nNível base: ${formatNumber(player.baseLevel)} · Nível de classe: ${formatNumber(player.jobLevel)}`
+                : 'Aguardando sincronização do jogo';
+        }
+
+        const xpPerHour = panel.querySelector('#metrics-xp-hour');
+        if (xpPerHour) {
+            xpPerHour.textContent = metrics.xpPerHour === null
+                ? 'Calculando...'
+                : `${formatNumber(metrics.xpPerHour)} XP`;
+        }
+        const baseExp = panel.querySelector('#metrics-base-exp');
+        if (baseExp) baseExp.textContent = formatNumber(player.baseExp);
+        const elapsed = panel.querySelector('#metrics-elapsed');
+        if (elapsed) {
+            const elapsedSeconds = Math.floor((Date.now() - metrics.startedAt) / 1000);
+            const hours = Math.floor(elapsedSeconds / 3600);
+            const minutes = Math.floor((elapsedSeconds % 3600) / 60);
+            const seconds = elapsedSeconds % 60;
+            elapsed.textContent = [hours, minutes, seconds]
+                .map(value => String(value).padStart(2, '0'))
+                .join(':');
+        }
+
+        const skillOptions = panel.querySelector('#fastskill-options');
+        if (skillOptions) {
+            const eligibleSkills = core.getEligibleSkills();
+            const skillSignature = JSON.stringify(eligibleSkills);
+            if (skillOptions.dataset.signature !== skillSignature) {
+                skillOptions.dataset.signature = skillSignature;
+                skillOptions.replaceChildren();
+                if (eligibleSkills.length === 0) {
+                    skillOptions.textContent = 'Nenhuma skill aprendida e automática na hotbar';
+                } else {
+                    eligibleSkills.forEach(skill => {
+                        const label = document.createElement('label');
+                        label.className = 'lam-fastskill-option';
+                        const checkbox = document.createElement('input');
+                        checkbox.type = 'checkbox';
+                        checkbox.dataset.fastskillId = skill.id;
+                        checkbox.checked = state.fastSkill.skills[skill.id] === true;
+                        const description = document.createElement('span');
+                        description.textContent = `${skill.id} · Nv. ${skill.level}`;
+                        label.append(checkbox, description);
+                        skillOptions.appendChild(label);
+                    });
+                }
+            }
+        }
+
+        const logList = panel.querySelector('#websocket-logs');
+        if (logList) {
+            const lastLog = logs[logs.length - 1];
+            const logSignature = `${logs.length}:${lastLog?.id ?? ''}`;
+            if (logList.dataset.signature !== logSignature) {
+                logList.dataset.signature = logSignature;
+                logList.replaceChildren();
+                if (logs.length === 0) {
+                    logList.textContent = 'Aguardando mensagens';
+                } else {
+                    logs.slice(-60).forEach(entry => {
+                        const line = document.createElement('div');
+                        const type = ['state', 'sync'].includes(entry.messageType)
+                            ? 'Sync'
+                            : entry.messageType;
+                        line.textContent = `${entry.timestamp} · ${entry.direction} - ${type}`;
+                        logList.appendChild(line);
+                    });
+                }
+            }
+        }
     };
 
     const observeHotbarChanges = () => {
@@ -385,4 +515,4 @@
     };
 
     namespace.ui = { build };
-})(globalThis.LarpAutopot = globalThis.LarpAutopot || {});
+})(globalThis.LarpAutomate = globalThis.LarpAutomate || {});

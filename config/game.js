@@ -7,13 +7,8 @@
             sp: 'hud-sp-text',
             hotbar: 'hotbar'
         },
-        menus: {
-            town: { id: 'btn-town', label: 'Vila' },
-            map: { selector: '[data-win="travel"]', label: 'Mapa' },
-            shop: { selector: '[data-win="shop"]', label: 'Loja' }
-        },
         shops: {
-            buyButton: 'button[data-action="buy"]',
+            purchaseQuantities: [1, 10, 100],
             potionTypes: {
                 hp: ['potion-red', 'potion-red-2', 'potion-red-3', 'potion-red-4'],
                 sp: ['potion-blue', 'potion-blue-2', 'potion-blue-3', 'potion-blue-4']
@@ -80,4 +75,4 @@
             origin_core: 'Núcleo da Origem'
         }
     };
-})(globalThis.LarpAutopot = globalThis.LarpAutopot || {});
+})(globalThis.LarpAutomate = globalThis.LarpAutomate || {});

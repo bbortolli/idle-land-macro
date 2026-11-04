@@ -1,13 +1,21 @@
 {
   "manifest_version": 3,
-  "name": "Larp Autopot",
-  "version": "1.0",
-  "description": "Autopot e Autorefiller para Cute Idle Land",
+  "name": "Larp Automate V2",
+  "version": "2.0.0",
+  "description": "Automação de poções e caça para Cute Idle Land",
+  "minimum_chrome_version": "111",
   "permissions": ["storage"],
   "host_permissions": ["https://www.cuteidleland.com/*"],
   "content_scripts": [
     {
       "matches": ["https://www.cuteidleland.com/*"],
+      "js": ["ws-bridge.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": ["https://www.cuteidleland.com/*"],
+      "css": ["ui/panel.css"],
       "js": [
         "config/game.js",
         "core.js",
