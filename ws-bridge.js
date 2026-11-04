@@ -12,6 +12,8 @@
         'potion-blue-3',
         'potion-blue-4'
     ]);
+    let potionInventory = [];
+    let inventoryReady = false;
     const MAPS = new Set([
         'clover_meadow',
         'whisper_woods',
@@ -79,6 +81,21 @@
                 auto: slot?.auto === true
             }))
             : [];
+        const inventory = Array.isArray(player.inventory) ? player.inventory : null;
+        if (inventory) {
+            inventoryReady = true;
+            potionInventory = inventory
+                .filter(entry =>
+                    entry && POTIONS.has(entry.item) &&
+                    typeof entry.uid === 'string' && entry.uid.length > 0 &&
+                    Number.isFinite(entry.qty) && entry.qty >= 0
+                )
+                .map(entry => ({
+                    item: entry.item,
+                    uid: entry.uid,
+                    qty: entry.qty
+                }));
+        }
         publish('game-state', {
             player: {
                 name: typeof player.name === 'string' ? player.name.slice(0, 80) : '',
@@ -86,9 +103,13 @@
                 map: typeof player.map === 'string' ? player.map.slice(0, 80) : '',
                 baseLevel: Number.isFinite(player.baseLevel) ? player.baseLevel : null,
                 jobLevel: Number.isFinite(player.jobLevel) ? player.jobLevel : null,
+                hp: Number.isFinite(player.hp) ? player.hp : null,
+                sp: Number.isFinite(player.sp) ? player.sp : null,
                 baseExp: Number.isFinite(player.baseExp) ? player.baseExp : null,
                 skills,
-                hotbar
+                hotbar,
+                inventoryReady,
+                potions: potionInventory
             }
         });
     };
@@ -146,11 +167,9 @@
         if (!action || typeof action !== 'object') return null;
 
         if (action.type === 'useItem' && typeof action.item === 'string' &&
-            /^[a-z0-9_-]+$/i.test(action.item)) {
-            const inventory = window.fv?.ui?.inventory;
-            if (!Array.isArray(inventory)) return { error: 'inventory-not-ready' };
-            const item = inventory.find(entry => entry.item === action.item);
-            if (!item?.uid) return { error: `item-not-owned:${action.item}` };
+            POTIONS.has(action.item)) {
+            const item = potionInventory.find(entry => entry.item === action.item && entry.qty > 0);
+            if (!item) return { error: `item-not-owned:${action.item}` };
             return { message: { type: 'useItem', uid: item.uid } };
         }
 

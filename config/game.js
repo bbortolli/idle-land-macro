@@ -2,11 +2,6 @@
     'use strict';
 
     namespace.config = {
-        selectors: {
-            hp: 'hud-hp-text',
-            sp: 'hud-sp-text',
-            hotbar: 'hotbar'
-        },
         shops: {
             purchaseQuantities: [1, 10, 100],
             potionTypes: {

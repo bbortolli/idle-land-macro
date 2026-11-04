@@ -5,6 +5,8 @@
     if (!config) throw new Error('Larp Automate V2 config must load before core.js');
 
     const STORAGE_KEY = 'larpAutopotSettings';
+    const PAGE_STORAGE_KEY = 'larpAutomateV2Settings';
+    const SETTINGS_SCHEMA_VERSION = 1;
     const BRIDGE_CHANNEL = 'larp-automate-v2';
     const SAVE_DEBOUNCE_MS = 750;
     const REFILL_TIMING = {
@@ -13,7 +15,7 @@
         afterPurchasesMs: [1200, 2200],
         quantityVerifyTimeoutMs: 10000
     };
-    const AUTOHUNT_CHECK_INTERVAL_MS = 30000;
+    const AUTOHUNT_CHECK_INTERVAL_MS = 10000;
     const METRICS_SAMPLE_INTERVAL_MS = 3000;
 
     const state = {
@@ -51,9 +53,13 @@
             baseLevel: null,
             jobLevel: null,
             map: '',
+            hp: null,
+            sp: null,
             baseExp: null,
             skills: {},
-            hotbar: []
+            hotbar: [],
+            inventoryReady: false,
+            potions: []
         },
         metrics: {
             baseExp: null,
@@ -66,7 +72,6 @@
         connection: {
             online: false
         },
-        observer: null,
         intervalId: null
     };
     let purchaseTargets = [];
@@ -197,6 +202,38 @@
         }
     });
 
+    const createSettingsRecord = (settings) => ({
+        schemaVersion: SETTINGS_SCHEMA_VERSION,
+        updatedAt: Date.now(),
+        settings
+    });
+
+    const parseSettingsRecord = (record) => {
+        if (!record || typeof record !== 'object' || Array.isArray(record)) return null;
+        if (record.schemaVersion === SETTINGS_SCHEMA_VERSION &&
+            record.settings && typeof record.settings === 'object' &&
+            !Array.isArray(record.settings) && Number.isFinite(record.updatedAt)) {
+            return { settings: record.settings, updatedAt: record.updatedAt, legacy: false };
+        }
+
+        const hasSettings = ['autopot', 'autorefiller', 'settings', 'autohunt', 'fastSkill']
+            .some(key => record[key] && typeof record[key] === 'object');
+        return hasSettings ? { settings: record, updatedAt: 0, legacy: true } : null;
+    };
+
+    const mergeLegacySettings = (syncSettings, localSettings) => {
+        const merged = { ...syncSettings, ...localSettings };
+        ['autopot', 'autorefiller', 'settings', 'autohunt', 'fastSkill'].forEach(section => {
+            if (syncSettings[section] || localSettings[section]) {
+                merged[section] = {
+                    ...(syncSettings[section] || {}),
+                    ...(localSettings[section] || {})
+                };
+            }
+        });
+        return merged;
+    };
+
     const updateGameState = (player) => {
         if (!player || typeof player !== 'object') return;
         const playerName = typeof player.name === 'string' ? player.name : '';
@@ -210,11 +247,21 @@
         state.player.map = typeof player.map === 'string' ? player.map : '';
         state.player.baseLevel = Number.isFinite(player.baseLevel) ? player.baseLevel : null;
         state.player.jobLevel = Number.isFinite(player.jobLevel) ? player.jobLevel : null;
+        state.player.hp = Number.isFinite(player.hp) ? player.hp : null;
+        state.player.sp = Number.isFinite(player.sp) ? player.sp : null;
         state.player.baseExp = Number.isFinite(player.baseExp) ? player.baseExp : null;
         state.player.skills = player.skills && typeof player.skills === 'object'
             ? player.skills
             : {};
         state.player.hotbar = Array.isArray(player.hotbar) ? player.hotbar.slice(0, 9) : [];
+        state.player.inventoryReady = player.inventoryReady === true;
+        state.player.potions = Array.isArray(player.potions)
+            ? player.potions.filter(entry =>
+                entry && config.shops.potionTypes.hp.concat(config.shops.potionTypes.sp).includes(entry.item) &&
+                typeof entry.uid === 'string' && entry.uid.length > 0 &&
+                Number.isFinite(entry.qty) && entry.qty >= 0
+            )
+            : [];
 
         if (state.player.baseExp === null) return;
         const now = Date.now();
@@ -323,80 +370,150 @@
         }
         if (migratedSettings) {
             log('Migrating saved autorefiller settings');
-            saveSettings();
         }
+        return migratedSettings;
     };
 
-    const writeSettings = (storage, settings, areaName) => {
-        if (!storage) return;
-        storage.set({ [STORAGE_KEY]: settings }, () => {
-            const error = globalThis.chrome.runtime.lastError;
+    const writeSettings = (storage, record, areaName) => {
+        if (!storage) {
+            log(`chrome.storage.${areaName} is unavailable; settings were not saved there`);
+            return;
+        }
+        storage.set({ [STORAGE_KEY]: record }, () => {
+            const error = globalThis.chrome?.runtime?.lastError;
             if (error) {
                 log(`Could not save settings to chrome.storage.${areaName}: ${error.message}`);
                 return;
             }
-            if (areaName === 'sync') {
-                log('Settings saved to chrome.storage.sync');
-            }
+            if (areaName === 'sync') log('Settings saved to chrome.storage.sync');
         });
     };
 
-    const readSyncSettings = (onLoaded) => {
-        const syncStorage = globalThis.chrome?.storage?.sync;
-        if (!syncStorage) {
-            log('chrome.storage.sync is unavailable');
-            onLoaded(false);
-            return;
+    const readPageSettings = () => {
+        try {
+            const value = window.localStorage.getItem(PAGE_STORAGE_KEY);
+            if (!value) return null;
+            const parsed = JSON.parse(value);
+            return parseSettingsRecord(parsed);
+        } catch (error) {
+            log(`Could not read settings from page storage: ${error.message}`);
+            return null;
         }
+    };
 
-        syncStorage.get(STORAGE_KEY, result => {
-            const error = globalThis.chrome.runtime.lastError;
-            if (error) {
-                log(`Could not load settings from chrome.storage.sync: ${error.message}`);
-                onLoaded(false);
-                return;
-            }
-
-            const stored = result[STORAGE_KEY];
-            if (stored !== undefined) {
-                applyStoredSettings(stored);
-                log('Settings loaded from chrome.storage.sync');
-                onLoaded(true);
-                return;
-            }
-            onLoaded(false);
-        });
+    const writePageSettings = (record) => {
+        try {
+            window.localStorage.setItem(PAGE_STORAGE_KEY, JSON.stringify(record));
+        } catch (error) {
+            log(`Could not save settings to page storage: ${error.message}`);
+        }
     };
 
     const loadSettings = (onLoaded) => {
-        const localStorage = globalThis.chrome?.storage?.local;
-        if (!localStorage) {
-            readSyncSettings(() => onLoaded());
+        const pageRecord = readPageSettings();
+        const storage = globalThis.chrome?.storage;
+        if (!storage) {
+            if (pageRecord) {
+                applyStoredSettings(pageRecord.settings);
+                log('Settings loaded from page storage');
+                if (pageRecord.legacy) saveSettings();
+            } else {
+                log('Chrome extension storage is unavailable; using defaults');
+            }
+            onLoaded();
             return;
         }
 
-        localStorage.get(STORAGE_KEY, result => {
-            const error = globalThis.chrome.runtime.lastError;
-            if (error) {
-                log(`Could not load settings from chrome.storage.local: ${error.message}`);
-                readSyncSettings(() => onLoaded());
-                return;
+        const areas = ['local', 'sync'].filter(area => storage[area]);
+        if (areas.length === 0) {
+            if (pageRecord) {
+                applyStoredSettings(pageRecord.settings);
+                log('Settings loaded from page storage');
+                if (pageRecord.legacy) saveSettings();
+            } else {
+                log('No Chrome storage area is available; using defaults');
+            }
+            onLoaded();
+            return;
+        }
+
+        const records = { page: pageRecord };
+        let pendingReads = areas.length;
+        let readFailed = false;
+        const finishLoading = () => {
+            pendingReads--;
+            if (pendingReads > 0) return;
+
+            const localRecord = records.local;
+            const syncRecord = records.sync;
+            const legacyRecords = [syncRecord, localRecord, records.page]
+                .filter(record => record?.legacy);
+            let selected;
+            if (legacyRecords.length > 1 &&
+                [syncRecord, localRecord, records.page]
+                    .filter(Boolean)
+                    .every(record => record.legacy)) {
+                selected = {
+                    settings: legacyRecords.reduce(
+                        (merged, record) => mergeLegacySettings(merged, record.settings),
+                        {}
+                    ),
+                    legacy: true,
+                    source: 'legacy storage'
+                };
+            } else if (localRecord && syncRecord) {
+                selected = { ...localRecord, source: 'local' };
+            } else {
+                selected = null;
             }
 
-            const stored = result[STORAGE_KEY];
-            if (stored !== undefined) {
-                applyStoredSettings(stored);
-                log('Settings loaded from chrome.storage.local');
-                onLoaded();
-                return;
+            const candidates = [
+                { record: syncRecord, source: 'sync' },
+                { record: localRecord, source: 'local' },
+                { record: records.page, source: 'page' }
+            ].filter(candidate => candidate.record && !candidate.record.legacy);
+            candidates.forEach(candidate => {
+                if (!selected || candidate.record.updatedAt >= selected.updatedAt) {
+                    selected = { ...candidate.record, source: candidate.source };
+                }
+            });
+            if (!selected) {
+                selected = [records.page, localRecord, syncRecord]
+                    .find(record => record) || null;
             }
 
-            readSyncSettings(foundInSync => {
-                if (foundInSync) {
-                    writeSettings(localStorage, getPersistedSettings(), 'local');
-                    log('Migrated existing settings to chrome.storage.local');
+            if (!selected) {
+                if (readFailed) {
+                    log('Could not read settings from any Chrome storage area; using defaults');
+                } else {
+                    log('No saved settings found; using defaults');
                 }
                 onLoaded();
+                return;
+            }
+
+            const migratedSettings = applyStoredSettings(selected.settings);
+            log(`Settings loaded from ${selected.source || 'legacy storage'}`);
+            if (selected.legacy || migratedSettings ||
+                !records.page || !localRecord || !syncRecord ||
+                localRecord.updatedAt !== syncRecord.updatedAt ||
+                localRecord.updatedAt !== records.page?.updatedAt ||
+                syncRecord.updatedAt !== records.page?.updatedAt) {
+                saveSettings();
+            }
+            onLoaded();
+        };
+
+        areas.forEach(area => {
+            storage[area].get(STORAGE_KEY, result => {
+                const error = globalThis.chrome?.runtime?.lastError;
+                if (error) {
+                    readFailed = true;
+                    log(`Could not load settings from chrome.storage.${area}: ${error.message}`);
+                } else {
+                    records[area] = parseSettingsRecord(result?.[STORAGE_KEY]);
+                }
+                finishLoading();
             });
         });
     };
@@ -408,22 +525,26 @@
         }
         if (!settingsDirty) return;
 
-        settingsDirty = false;
-        const settings = getPersistedSettings();
+        const record = createSettingsRecord(getPersistedSettings());
+        writePageSettings(record);
         const storage = globalThis.chrome?.storage;
         if (!storage) {
-            log('Chrome extension storage is unavailable; settings were not saved');
+            settingsDirty = false;
+            log('Chrome extension storage is unavailable; settings were saved only to page storage');
             return;
         }
-        if (persistLocal) writeSettings(storage.local, settings, 'local');
-        writeSettings(storage.sync, settings, 'sync');
+        if (persistLocal) writeSettings(storage.local, record, 'local');
+        writeSettings(storage.sync, record, 'sync');
+        settingsDirty = false;
     };
 
     const saveSettings = () => {
         settingsDirty = true;
+        const record = createSettingsRecord(getPersistedSettings());
+        writePageSettings(record);
         const localStorage = globalThis.chrome?.storage?.local;
         if (localStorage) {
-            writeSettings(localStorage, getPersistedSettings(), 'local');
+            writeSettings(localStorage, record, 'local');
         } else {
             log('chrome.storage.local is unavailable; settings are not persisted locally');
         }
@@ -431,61 +552,15 @@
         saveSettingsTimeout = setTimeout(() => saveSettingsNow(false), SAVE_DEBOUNCE_MS);
     };
 
-    window.addEventListener('pagehide', saveSettingsNow);
-
-    const parseValue = (element) => {
-        if (!element) return null;
-        const match = element.textContent.match(/(\d+)\s*\//);
-        return match ? parseInt(match[1], 10) : null;
-    };
-
-    const getHotbarSlots = () => {
-        const hotbar = document.getElementById(config.selectors.hotbar);
-        return hotbar ? Array.from(hotbar.children) : [];
-    };
-
-    const getHotbarSlot = (index) => getHotbarSlots()[parseInt(index, 10) - 1] || null;
-
-    const getHotbarIndexForPotion = (potionType) => {
-        const serverSlot = state.player.hotbar.findIndex(slot => slot?.item === potionType);
-        if (serverSlot >= 0) return String(serverSlot + 1);
-
-        const potionName = config.shops.potionNames[potionType];
-        const identityAttributes = ['data-item', 'data-item-id', 'data-id', 'data-uid', 'data-type'];
-        const labelAttributes = ['title', 'aria-label', 'alt'];
-        const matchesIdentity = value =>
-            value === potionType || value.endsWith(`:${potionType}`);
-        const matchesLabel = value => value.trim() === potionName;
-
-        for (const [index, slot] of getHotbarSlots().entries()) {
-            const elements = [slot, ...slot.querySelectorAll(
-                '[data-item], [data-item-id], [data-id], [data-uid], [data-type], [title], [aria-label], [alt]'
-            )];
-            const found = elements.some(element =>
-                identityAttributes.some(attribute => {
-                    const value = element.getAttribute(attribute);
-                    return value !== null && matchesIdentity(value);
-                }) || (potionName && labelAttributes.some(attribute => {
-                    const value = element.getAttribute(attribute);
-                    return value !== null && matchesLabel(value);
-                }))
-            );
-            if (found) return String(index + 1);
-        }
-        return null;
-    };
-
-    const getPotionQty = (index) => {
-        const slot = getHotbarSlot(index);
-        const quantityElement = slot && slot.querySelector('.qty');
-        if (!quantityElement) return null;
-        const quantity = parseInt(quantityElement.textContent, 10);
-        return Number.isNaN(quantity) ? null : quantity;
-    };
+    window.addEventListener('pagehide', () => saveSettingsNow());
 
     const getPotionQtyForType = (potionType) => {
-        const slot = getHotbarIndexForPotion(potionType);
-        return slot === null ? null : getPotionQty(slot);
+        if (!state.player.inventoryReady) return null;
+        const potions = config.shops.potionTypes.hp.concat(config.shops.potionTypes.sp);
+        if (!potions.includes(potionType)) return null;
+        return state.player.potions
+            .filter(entry => entry.item === potionType)
+            .reduce((total, entry) => total + entry.qty, 0);
     };
 
     const getEligibleSkills = () => {
@@ -559,8 +634,8 @@
     const checkAutopot = () => {
         if (!state.autopot.enabled || !state.connection.online) return;
 
-        const hp = parseValue(document.getElementById(config.selectors.hp));
-        const sp = parseValue(document.getElementById(config.selectors.sp));
+        const hp = state.player.hp;
+        const sp = state.player.sp;
 
         const requests = [
             { label: 'HP', value: hp, threshold: state.autopot.hpThreshold, potion: state.settings.hpPotionType },
@@ -636,7 +711,7 @@
                 const minQty = item.label === 'HP' ? hpMinToRefill : spMinToRefill;
                 if (!item.enabled) return false;
                 if (item.qty === null) {
-                    log(`Cannot refill ${item.label}: selected potion is not detected in the hotbar`);
+                    log(`Cannot refill ${item.label}: waiting for potion inventory from WebSocket state`);
                     return false;
                 }
                 return item.qty < minQty;
@@ -789,22 +864,7 @@
 
     const start = (buildUI) => {
         const boot = () => {
-            const hpElement = document.getElementById(config.selectors.hp);
-            const spElement = document.getElementById(config.selectors.sp);
-            if (!hpElement || !spElement) {
-                setTimeout(boot, 500);
-                return;
-            }
-
             buildUI();
-            state.observer = new MutationObserver(check);
-            [hpElement, spElement].forEach(element => {
-                state.observer.observe(element, {
-                    childList: true,
-                    characterData: true,
-                    subtree: true
-                });
-            });
             restartInterval();
             check();
             log('Larp Automate V2 started');
@@ -822,10 +882,6 @@
     namespace.core = {
         state,
         config,
-        parseValue,
-        getHotbarSlots,
-        getHotbarIndexForPotion,
-        getPotionQty,
         getPotionQtyForType,
         getEligibleSkills,
         checkGameConnection,

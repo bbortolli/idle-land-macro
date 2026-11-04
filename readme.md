@@ -10,7 +10,7 @@ larp-automate-v2/
 ├── content.js          # Inicialização da extensão
 ├── ws-bridge.js        # Relay seguro para a API WebSocket do jogo
 ├── config/
-│   └── game.js         # Seletores, poções, quantidades de compra e mapas
+│   └── game.js         # Poções, quantidades de compra e mapas
 ├── core.js             # Estado, autopot, refiller e ações de jogo
 └── ui/
     ├── panel.js        # Painel, abas e eventos da interface
@@ -49,11 +49,11 @@ larp-automate-v2/
 }
 ```
 
-## Seletores e Elementos Conhecidos
-- HP HUD: `#hud-hp-text` → texto tipo `"Vida 930 / 1008"` → valor antes da `/`
-- SP HUD: `#hud-sp-text` → mesmo formato
-- Hotbar: `#hotbar` → filhos são os slots (índice 0 = slot "1"); cada botão de item expõe seu tipo em `data-item`
-- Quantidade de poção no slot: filho com classe `.qty`
+## Dados Conhecidos do WebSocket
+- O relay observa mensagens `state`/`sync` recebidas por `window.fv.net.ws`.
+- HP, SP, mapa e experiência são lidos do objeto `player` enviado pelo jogo.
+- O inventário é atualizado quando `player.inventory` está disponível. Cada entrada de poção conhecida é filtrada pelos tipos configurados e encaminhada com `item`, `uid` e `qty`.
+- A hotbar ainda é usada para descobrir skills automáticas, mas não para ler quantidade ou usar poções.
 - Itens da loja (`data-item`):
   - HP: `potion-red` (Poção Vermelha), `potion-red-2` (Poção Vermelha Grande), `potion-red-3` (Poção Carmesim), `potion-red-4` (Elixir Rubro)
   - SP: `potion-blue` (Poção Azul), `potion-blue-2` (Poção Azul Grande), `potion-blue-3` (Poção Safira), `potion-blue-4` (Elixir de Mana)
@@ -64,13 +64,13 @@ larp-automate-v2/
 ## Funcionalidades Implementadas
 
 ### 1. Autopot
-- Monitora HP e SP via `MutationObserver` + `setInterval` (fallback)
+- Monitora HP e SP recebidos por WebSocket, usando a verificação periódica configurada
 - Default: HP < 250, SP < 50
 - Ao cair abaixo do threshold, envia `useItem` pela conexão WebSocket do jogo
-- O UID da instância é obtido de `window.fv.ui.inventory` pelo tipo de item, sem configuração manual
+- O UID é localizado dinamicamente no inventário recebido do jogo; não há UIDs fixos nem busca no DOM
 
 ### 2. Autorefiller
-- Lê a quantidade via `.qty` no slot detectado pelo tipo de poção selecionado
+- Lê a quantidade somando as entradas do tipo de poção selecionado no inventário recebido por WebSocket
 - Permite ativar/desativar a recarga de poções de HP e SP separadamente
 - Exibe controles de mínimo, máximo e quantidade em seções independentes para HP e SP
 - Só verifica e compra uma poção quando o respectivo controle estiver ativado
@@ -88,14 +88,14 @@ larp-automate-v2/
 ### 3. Autohunt
 - Seleciona o mapa para retomar automaticamente a caça após o refiller
 - Opção para voltar ao mapa selecionado caso o personagem saia dele
-- A verificação acontece a cada 30 segundos, somente com o fluxo de recarga ocioso e sem outra troca de mapa pendente
+- A verificação acontece a cada 10 segundos, somente com o fluxo de recarga ocioso e sem outra troca de mapa pendente
 - Viaja diretamente com `setMap`; `puffton` não aparece na lista por ser a Vila
 - Os mapas são exibidos em português: Campos do Trevo, Bosque dos Sussurros, Lagoa do Orvalho, Caverna Cintilante, Colina do Mel, Pântano da Névoa, Pico Gélido, Ruínas Submersas, Vulcão de Brasa, Torre Celeste, Jardim Lunar, Abismo Estelar, Santuário Cristalino, Profundezas de Coral, Planalto dos Trovões, Deserto de Ossos, Forja de Obsidiana, Geleira Eterna, Pântano do Espelho, Cidadela de Engrenagens, Bosque dos Sonhos, Coroa Solar e Núcleo da Origem
 
 ### 4. Settings
 - Taxa de verificação: 200–1000 ms (padrão 500, com limite automático)
 - Seleciona o tipo de poção para HP e SP na aba Poções; o Autopot usa o WebSocket e não depende da hotbar
-- O Autorefiller usa `settings.hotbar` recebido no estado do jogo para localizar a quantidade da poção na interface
+- O Autorefiller usa `player.inventory` recebido no estado do jogo para localizar os UIDs e as quantidades das poções
 - Os nomes exibidos para as poções correspondem aos nomes apresentados na loja do jogo
 
 ### 5. Personagem e métricas
@@ -116,23 +116,24 @@ larp-automate-v2/
 ## Detalhes Técnicos Importantes
 - O painel usa as cores, fontes e molduras escuras/douradas observadas na página do jogo (Barlow, Cinzel, azul-marinho e dourado)
 - UI fixa à direita: painel `#larp-automate-v2-panel` com `z-index: 2147483647`
-- Dupla verificação: `MutationObserver` (reage na hora) + `setInterval` (fallback, taxa configurável)
+- Ações de poção e refill usam estado e comandos WebSocket, sem consultar ou clicar em elementos do HUD, hotbar ou loja
 - Clamp de valores: rate forçado entre 200–1000ms mesmo se usuário digitar fora
 - A extensão usa um relay no mundo principal (`ws-bridge.js`) porque o content script isolado não acessa `window.fv`
-- O relay valida ações e envia JSON por `window.fv.net.ws`; para `useItem`, resolve o UID no inventário
-- O relay observa mensagens WebSocket do jogo, encaminhando somente os dados de personagem usados pela interface e o tipo de cada mensagem nos logs
+- O relay valida ações e envia JSON por `window.fv.net.ws`; `useItem` usa o UID atualizado a partir do inventário filtrado
+- O relay observa mensagens WebSocket do jogo, encaminhando dados de personagem, HP/SP e inventário filtrado, além do tipo de cada mensagem nos logs
 - A interface mostra se a conexão WebSocket está disponível; as ações falham com mensagem no console se o jogo não estiver conectado ou o item não estiver no inventário
-- `config/game.js` centraliza os tipos de poção, quantidades de compra, seletores e mapas
+- `config/game.js` centraliza os tipos de poção, quantidades de compra e mapas
 - Os scripts do content script são declarados no `manifest.json`; o relay roda no mundo principal desde `document_start`
 - Logs com prefixo `[Larp Automate V2]`
 
 ## Persistência das Configurações
-- As opções são carregadas primeiro de `chrome.storage.local` antes da interface e da macro iniciarem, e também gravadas em `chrome.storage.sync`.
-- Alterações são gravadas imediatamente em `chrome.storage.local` e sincronizadas com debounce para evitar excesso de gravações.
-- Se não houver cópia local, configurações existentes em `chrome.storage.sync` são carregadas e migradas para o armazenamento local.
+- As opções são gravadas imediatamente em uma chave própria do `localStorage` do site, além de `chrome.storage.local`; também são sincronizadas com debounce para `chrome.storage.sync`.
+- Na inicialização, as cópias disponíveis são comparadas pela data de atualização e a mais recente é carregada.
+- O `localStorage` do site permite recuperar as configurações após remover e recriar a extensão, mesmo quando a nova instalação recebe outro ID e não consegue acessar o armazenamento associado ao ID anterior.
+- Registros antigos sem versão são migrados e, se existirem nos dois locais, combinados por seção para preservar campos que estejam faltando em uma das cópias.
 - Configurações antigas com controles ou limites compartilhados do Autorefiller são migradas automaticamente para HP e SP.
 - Apenas configurações são persistidas; o estado temporário do fluxo de recarga começa em `idle` quando a página é carregada.
-- Recarregue a extensão existente em `chrome://extensions/` mantendo o mesmo diretório e ID para preservar os dados locais. Remover e instalar como uma extensão diferente cria outro armazenamento.
+- As configurações do site permanecem no mesmo perfil/navegador e domínio do jogo. O `chrome.storage.sync` continua vinculado ao ID da extensão; para sincronizar entre dispositivos, use o mesmo ID e uma conta Chrome sincronizada.
 - A chave interna de armazenamento permanece `larpAutopotSettings` para preservar as configurações já salvas na V1.
 - Se a leitura ou gravação falhar, o erro é registrado no console com o prefixo `[Larp Automate V2]`.
 

@@ -29,7 +29,7 @@
             background: rgba(255,255,255,0.02);
         `;
         const rowStyle = 'display:flex;align-items:center;gap:6px;margin-bottom:6px;flex-wrap:wrap;';
-        const inputStyle = 'width:55px;padding:2px 4px;background:#2a2a33;color:#eee;border:1px solid #555;border-radius:4px;';
+        const inputStyle = 'width:88px;min-width:0;padding:2px 4px;background:#2a2a33;color:#eee;border:1px solid #555;border-radius:4px;';
         const selectStyle = 'padding:2px;background:#2a2a33;color:#eee;border:1px solid #555;border-radius:4px;';
         panel.innerHTML = `
             <div class="lam-header" style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;">
@@ -41,26 +41,26 @@
                 <div role="tablist" aria-label="Seções da macro"
                     style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px;border-bottom:1px solid #444;padding-bottom:6px;">
                     <button type="button" role="tab" data-tab="character" aria-selected="true"
-                        style="flex:1;padding:5px 2px;background:#3a3a46;color:#ffd700;border:1px solid #555;border-radius:4px;cursor:pointer;">Personagem</button>
+                        style="flex:1;padding:5px 2px;background:#3a3a46;color:#ffd700;border:1px solid #555;border-radius:4px;cursor:pointer;">Hero</button>
                     <button type="button" role="tab" data-tab="autopot" aria-selected="false"
-                        style="flex:1;padding:5px 2px;background:#22222a;color:#aaa;border:1px solid #444;border-radius:4px;cursor:pointer;">Poções</button>
+                        style="flex:1;padding:5px 2px;background:#22222a;color:#aaa;border:1px solid #444;border-radius:4px;cursor:pointer;">Healer</button>
                     <button type="button" role="tab" data-tab="autorefiller" aria-selected="false"
                         style="flex:1;padding:5px 2px;background:#22222a;color:#aaa;border:1px solid #444;border-radius:4px;cursor:pointer;">Refiller</button>
                     <button type="button" role="tab" data-tab="autohunt" aria-selected="false"
                         style="flex:1;padding:5px 2px;background:#22222a;color:#aaa;border:1px solid #444;border-radius:4px;cursor:pointer;">Hunt</button>
                     <button type="button" role="tab" data-tab="fastskill" aria-selected="false"
-                        style="flex:1;padding:5px 2px;background:#22222a;color:#aaa;border:1px solid #444;border-radius:4px;cursor:pointer;">Fastkill</button>
+                        style="flex:1;padding:5px 2px;background:#22222a;color:#aaa;border:1px solid #444;border-radius:4px;cursor:pointer;">Fast Skill</button>
                     <button type="button" role="tab" data-tab="metrics" aria-selected="false"
-                        style="flex:1;padding:5px 2px;background:#22222a;color:#aaa;border:1px solid #444;border-radius:4px;cursor:pointer;">Métricas</button>
+                        style="flex:1;padding:5px 2px;background:#22222a;color:#aaa;border:1px solid #444;border-radius:4px;cursor:pointer;">Stats</button>
                     <button type="button" role="tab" data-tab="logs" aria-selected="false"
                         style="flex:1;padding:5px 2px;background:#22222a;color:#aaa;border:1px solid #444;border-radius:4px;cursor:pointer;">Logs</button>
                     <button type="button" role="tab" data-tab="settings" aria-selected="false"
-                        style="flex:1;padding:5px 2px;background:#22222a;color:#aaa;border:1px solid #444;border-radius:4px;cursor:pointer;">Ajustes</button>
+                        style="flex:1;padding:5px 2px;background:#22222a;color:#aaa;border:1px solid #444;border-radius:4px;cursor:pointer;">Config</button>
                 </div>
 
                 <div role="tabpanel" data-tab-panel="character">
                     <div class="lam-section lam-character" style="${sectionStyle('#c8a24e')}">
-                        <div style="font-weight:700;margin-bottom:8px;color:#e6c77a;">Personagem</div>
+                        <div style="font-weight:700;margin-bottom:8px;color:#e6c77a;">Hero</div>
                         <div id="character-summary" class="lam-character-summary">Aguardando sincronização do jogo</div>
                     </div>
                 </div>
@@ -89,7 +89,6 @@
                 </div>
 
                 <div role="tabpanel" data-tab-panel="autorefiller" hidden>
-                    <div class="lam-refill-title" style="font-weight:700;color:#9b59b6;margin-bottom:8px;">Reposição de poções</div>
                     <div class="lam-section lam-hp" style="${sectionStyle('#ff6b6b')}">
                         <div style="${rowStyle};margin-bottom:8px;">
                             <input type="checkbox" id="refiller-hp-enabled" ${state.autorefiller.hpEnabled ? 'checked' : ''}>
@@ -125,19 +124,16 @@
                 <div role="tabpanel" data-tab-panel="autohunt" hidden>
                     <div class="lam-section lam-world" style="${sectionStyle('#58b368')}">
                         <div style="font-weight:700;margin-bottom:8px;color:#58b368;">Caça automática</div>
-                        <div style="${rowStyle}">
-                            <label for="autohunt-map">Mapa:</label>
-                            <select id="autohunt-map" style="${selectStyle};max-width:160px;">
+                        <div class="lam-hunt-controls">
+                            <select id="autohunt-map" aria-label="Mapa de caça" style="${selectStyle};">
                                 ${buildMapOptions(state.autohunt.map)}
                             </select>
-                        </div>
-                        <div style="${rowStyle}">
                             <input type="checkbox" id="autohunt-return-enabled"
                                 ${state.autohunt.returnToMapEnabled ? 'checked' : ''}>
-                            <label for="autohunt-return-enabled">Voltar automaticamente se sair do mapa</label>
                         </div>
-                        <div style="font-size:10px;color:#889;margin-top:4px;">
-                            Verifica a cada 30 segundos. Pausa durante a reposição.
+                        <div class="lam-hunt-hint">
+                            <span class="lam-info-icon" title="Retorna ao mapa automaticamente" aria-label="Retorna ao mapa automaticamente">i</span>
+                            Retorna ao mapa automaticamente
                         </div>
                     </div>
                 </div>
@@ -166,7 +162,7 @@
 
                 <div role="tabpanel" data-tab-panel="fastskill" hidden>
                     <div class="lam-section lam-action" style="${sectionStyle('#e6a23c')}">
-                        <div style="font-weight:700;margin-bottom:8px;color:#e6a23c;">Fastkill</div>
+                        <div style="font-weight:700;margin-bottom:8px;color:#e6a23c;">Fast Skill</div>
                         <div style="${rowStyle}">
                             <span>Intervalo:</span>
                             <input type="number" id="fastskill-interval" value="${state.fastSkill.intervalMs}"
@@ -184,9 +180,9 @@
 
                 <div role="tabpanel" data-tab-panel="settings" hidden>
                     <div class="lam-section lam-settings" style="${sectionStyle('#666')}">
-                        <div style="font-weight:700;margin-bottom:8px;color:#aaa;">Ajustes</div>
+                        <div style="font-weight:700;margin-bottom:8px;color:#aaa;">Config</div>
                         <div style="${rowStyle}">
-                            <span>Verificação:</span>
+                            <span>Rate:</span>
                             <input type="number" id="settings-rate" value="${state.settings.checkMs}"
                                 min="200" max="1000" step="50" style="${inputStyle}">
                             <span>ms</span>
@@ -213,7 +209,6 @@
         refreshPotionDetails();
         refreshGameData(panel);
         startStatusUpdates();
-        observeHotbarChanges();
     };
 
     const wireTabs = (panel) => {
@@ -390,8 +385,8 @@
         };
 
         setInterval(() => {
-            const hp = core.parseValue(document.getElementById(config.selectors.hp));
-            const sp = core.parseValue(document.getElementById(config.selectors.sp));
+            const hp = state.player.hp;
+            const sp = state.player.sp;
             const status = document.getElementById('larp-status');
             if (status) status.textContent = `HP: ${hp ?? '–'} / SP: ${sp ?? '–'}`;
             refreshPotionDetails();
@@ -499,19 +494,6 @@
                 }
             }
         }
-    };
-
-    const observeHotbarChanges = () => {
-        const hotbar = document.getElementById(config.selectors.hotbar);
-        if (!hotbar) return;
-
-        const observer = new MutationObserver(refreshPotionDetails);
-        observer.observe(hotbar, {
-            childList: true,
-            subtree: true,
-            attributes: true,
-            attributeFilter: ['data-item', 'data-item-id', 'data-id', 'data-uid', 'data-type', 'title', 'aria-label', 'alt']
-        });
     };
 
     namespace.ui = { build };
