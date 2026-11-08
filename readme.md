@@ -94,16 +94,18 @@ larp-automate-v2/
 
 ### 4. Settings
 - Taxa de verificação: 200–1000 ms (padrão 500, com limite automático)
+- Lite mode oculta `section#screen-game` e restaura seu estilo original ao desativar; a opção fica salva junto às demais configurações
 - Seleciona o tipo de poção para HP e SP na aba Poções; o Autopot usa o WebSocket e não depende da hotbar
 - O Autorefiller usa `player.inventory` recebido no estado do jogo para localizar os UIDs e as quantidades das poções
 - Os nomes exibidos para as poções correspondem aos nomes apresentados na loja do jogo
 
-### 5. Personagem e métricas
-- Recebe os estados `state`/`sync` do WebSocket para exibir nome, classe e níveis do personagem
-- Exibe XP/Hora calculada pela variação de `player.baseExp` em janelas de pelo menos 3 segundos; mostra a média móvel das últimas seis amostras
-- Contador de tempo desde o início/reset da seção e botão para zerar as métricas
+### 5. Geral
+- A aba Geral exibe nome, classe, níveis, HP/SP atuais, EXP base, mapa atual, XP/Hora e tempo decorrido
+- XP/Hora é calculada pela variação de `player.baseExp` em janelas de pelo menos 3 segundos; mostra a média móvel das últimas seis amostras
+- Botão para zerar o tempo e as métricas de XP/Hora
 
 ### 6. Logs
+- A extração pode ser ligada/desligada pelo checkbox da aba Logs; desativada, o relay deixa de analisar e encaminhar os tipos das mensagens para o painel
 - Exibe os tipos das mensagens WebSocket enviadas e recebidas, sem guardar ou exibir o conteúdo completo
 - Exemplo: `ENVIADO - cast` e `RECEBIDO - Sync`
 - Mantém no máximo 100 eventos em memória e permite limpar a lista
@@ -120,7 +122,7 @@ larp-automate-v2/
 - Clamp de valores: rate forçado entre 200–1000ms mesmo se usuário digitar fora
 - A extensão usa um relay no mundo principal (`ws-bridge.js`) porque o content script isolado não acessa `window.fv`
 - O relay valida ações e envia JSON por `window.fv.net.ws`; `useItem` usa o UID atualizado a partir do inventário filtrado
-- O relay observa mensagens WebSocket do jogo, encaminhando dados de personagem, HP/SP e inventário filtrado, além do tipo de cada mensagem nos logs
+- O relay observa mensagens WebSocket do jogo, encaminhando dados de personagem, HP/SP e inventário filtrado; a extração de tipos para logs é opcional
 - A interface mostra se a conexão WebSocket está disponível; as ações falham com mensagem no console se o jogo não estiver conectado ou o item não estiver no inventário
 - `config/game.js` centraliza os tipos de poção, quantidades de compra e mapas
 - Os scripts do content script são declarados no `manifest.json`; o relay roda no mundo principal desde `document_start`

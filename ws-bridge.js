@@ -14,6 +14,7 @@
     ]);
     let potionInventory = [];
     let inventoryReady = false;
+    let loggingEnabled = false;
     const MAPS = new Set([
         'clover_meadow',
         'whisper_woods',
@@ -119,8 +120,12 @@
         if (typeof socket.addEventListener !== 'function' || typeof socket.send !== 'function') return;
 
         socket.addEventListener('message', event => {
-            const messageType = getMessageType(event.data);
-            publish('websocket-log', { direction: 'RECEBIDO', messageType });
+            if (loggingEnabled) {
+                publish('websocket-log', {
+                    direction: 'RECEBIDO',
+                    messageType: getMessageType(event.data)
+                });
+            }
             if (typeof event.data !== 'string') return;
             try {
                 publishPlayerState(JSON.parse(event.data));
@@ -133,10 +138,12 @@
         try {
             socket.send = function (data) {
                 const result = originalSend.call(this, data);
-                publish('websocket-log', {
-                    direction: 'ENVIADO',
-                    messageType: getMessageType(data)
-                });
+                if (loggingEnabled) {
+                    publish('websocket-log', {
+                        direction: 'ENVIADO',
+                        messageType: getMessageType(data)
+                    });
+                }
                 return result;
             };
         } catch (error) {
@@ -198,6 +205,11 @@
 
     window.addEventListener('message', event => {
         const request = event.data;
+        if (event.source === window && request?.channel === CHANNEL &&
+            request.type === 'logging-setting' && typeof request.enabled === 'boolean') {
+            loggingEnabled = request.enabled;
+            return;
+        }
         if (event.source !== window || request?.channel !== CHANNEL ||
             request.type !== 'request' || typeof request.requestId !== 'string') {
             return;

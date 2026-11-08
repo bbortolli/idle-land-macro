@@ -37,7 +37,9 @@
         settings: {
             checkMs: 500,
             hpPotionType: 'potion-red',
-            spPotionType: 'potion-blue'
+            spPotionType: 'potion-blue',
+            liteMode: false,
+            logsEnabled: true
         },
         autohunt: {
             map: 'clover_meadow',
@@ -79,6 +81,7 @@
     let saveSettingsTimeout = null;
     let settingsDirty = false;
     let fastSkillIntervalId = null;
+    let liteModeObserver = null;
     let gameRequestId = 0;
     let websocketLogSequence = 0;
     let lastAutohuntCheckAt = 0;
@@ -87,6 +90,7 @@
     let xpSample = null;
     const pendingGameRequests = new Map();
     const lastPotionUse = new Map();
+    const originalScreenGameDisplay = new WeakMap();
     const reportedActionErrors = new Set();
     const MAX_WEBSOCKET_LOGS = 100;
 
@@ -97,6 +101,7 @@
         if (event.source !== window || response?.channel !== BRIDGE_CHANNEL) return;
 
         if (response.type === 'websocket-log') {
+            if (!state.settings.logsEnabled) return;
             if (!['ENVIADO', 'RECEBIDO'].includes(response.direction) ||
                 typeof response.messageType !== 'string') return;
             state.logs.push({
@@ -190,7 +195,9 @@
         settings: {
             checkMs: state.settings.checkMs,
             hpPotionType: state.settings.hpPotionType,
-            spPotionType: state.settings.spPotionType
+            spPotionType: state.settings.spPotionType,
+            liteMode: state.settings.liteMode,
+            logsEnabled: state.settings.logsEnabled
         },
         autohunt: {
             map: state.autohunt.map,
@@ -351,6 +358,12 @@
         }
         if (config.shops.potionTypes.sp.includes(stored.settings?.spPotionType)) {
             state.settings.spPotionType = stored.settings.spPotionType;
+        }
+        if (typeof stored.settings?.liteMode === 'boolean') {
+            state.settings.liteMode = stored.settings.liteMode;
+        }
+        if (typeof stored.settings?.logsEnabled === 'boolean') {
+            state.settings.logsEnabled = stored.settings.logsEnabled;
         }
         if (config.maps.includes(stored.autohunt?.map)) {
             state.autohunt.map = stored.autohunt.map;
@@ -553,6 +566,75 @@
     };
 
     window.addEventListener('pagehide', () => saveSettingsNow());
+
+    const applyLiteMode = (enabled = state.settings.liteMode) => {
+        const screenGame = document.getElementById('screen-game');
+        if (!enabled) {
+            if (liteModeObserver) {
+                liteModeObserver.disconnect();
+                liteModeObserver = null;
+            }
+            if (screenGame && originalScreenGameDisplay.has(screenGame)) {
+                const original = originalScreenGameDisplay.get(screenGame);
+                if (original.value) {
+                    screenGame.style.setProperty('display', original.value, original.priority);
+                } else {
+                    screenGame.style.removeProperty('display');
+                }
+                originalScreenGameDisplay.delete(screenGame);
+            }
+            return;
+        }
+
+        if (screenGame) {
+            if (!originalScreenGameDisplay.has(screenGame)) {
+                originalScreenGameDisplay.set(screenGame, {
+                    value: screenGame.style.getPropertyValue('display'),
+                    priority: screenGame.style.getPropertyPriority('display')
+                });
+            }
+            if (screenGame.style.getPropertyValue('display') !== 'none' ||
+                screenGame.style.getPropertyPriority('display') !== 'important') {
+                screenGame.style.setProperty('display', 'none', 'important');
+            }
+        }
+        if (!liteModeObserver && document.documentElement) {
+            liteModeObserver = new MutationObserver(() => {
+                if (state.settings.liteMode) applyLiteMode(true);
+            });
+            liteModeObserver.observe(document.documentElement, {
+                attributes: true,
+                attributeFilter: ['style'],
+                childList: true,
+                subtree: true
+            });
+        }
+    };
+
+    const setLiteMode = (enabled) => {
+        state.settings.liteMode = enabled === true;
+        applyLiteMode();
+        saveSettings();
+    };
+
+    const setWebSocketLogging = (enabled) => {
+        state.settings.logsEnabled = enabled === true;
+        if (!state.settings.logsEnabled) state.logs.length = 0;
+        window.postMessage({
+            channel: BRIDGE_CHANNEL,
+            type: 'logging-setting',
+            enabled: state.settings.logsEnabled
+        }, location.origin);
+        saveSettings();
+    };
+
+    const syncWebSocketLogging = () => {
+        window.postMessage({
+            channel: BRIDGE_CHANNEL,
+            type: 'logging-setting',
+            enabled: state.settings.logsEnabled
+        }, location.origin);
+    };
 
     const getPotionQtyForType = (potionType) => {
         if (!state.player.inventoryReady) return null;
@@ -874,6 +956,8 @@
 
     const initialize = (buildUI) => {
         loadSettings(() => {
+            applyLiteMode();
+            syncWebSocketLogging();
             updateFastSkillInterval();
             start(buildUI);
         });
@@ -882,6 +966,8 @@
     namespace.core = {
         state,
         config,
+        setLiteMode,
+        setWebSocketLogging,
         getPotionQtyForType,
         getEligibleSkills,
         checkGameConnection,

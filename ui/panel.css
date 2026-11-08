@@ -188,6 +188,30 @@
     white-space: pre-line !important;
 }
 
+#larp-automate-v2-panel .lam-hero-status {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 6px 10px !important;
+    margin-top: 10px !important;
+    padding-top: 9px !important;
+    border-top: 1px solid rgba(200, 162, 78, 0.2) !important;
+    font-size: 11px !important;
+}
+
+#larp-automate-v2-panel .lam-hero-status strong {
+    color: #f0e6d2 !important;
+}
+
+#larp-automate-v2-panel .lam-hero-metrics {
+    margin-top: 10px !important;
+    padding-top: 9px !important;
+    border-top: 1px solid rgba(200, 162, 78, 0.2) !important;
+}
+
+#larp-automate-v2-panel .lam-hero-metrics strong {
+    color: #f0e6d2 !important;
+}
+
 #larp-automate-v2-panel .lam-character-hotbar,
 #larp-automate-v2-panel .lam-log-list {
     max-height: 220px !important;

@@ -41,7 +41,7 @@
                 <div role="tablist" aria-label="Seções da macro"
                     style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px;border-bottom:1px solid #444;padding-bottom:6px;">
                     <button type="button" role="tab" data-tab="character" aria-selected="true"
-                        style="flex:1;padding:5px 2px;background:#3a3a46;color:#ffd700;border:1px solid #555;border-radius:4px;cursor:pointer;">Hero</button>
+                        style="flex:1;padding:5px 2px;background:#3a3a46;color:#ffd700;border:1px solid #555;border-radius:4px;cursor:pointer;">Geral</button>
                     <button type="button" role="tab" data-tab="autopot" aria-selected="false"
                         style="flex:1;padding:5px 2px;background:#22222a;color:#aaa;border:1px solid #444;border-radius:4px;cursor:pointer;">Healer</button>
                     <button type="button" role="tab" data-tab="autorefiller" aria-selected="false"
@@ -50,8 +50,6 @@
                         style="flex:1;padding:5px 2px;background:#22222a;color:#aaa;border:1px solid #444;border-radius:4px;cursor:pointer;">Hunt</button>
                     <button type="button" role="tab" data-tab="fastskill" aria-selected="false"
                         style="flex:1;padding:5px 2px;background:#22222a;color:#aaa;border:1px solid #444;border-radius:4px;cursor:pointer;">Fast Skill</button>
-                    <button type="button" role="tab" data-tab="metrics" aria-selected="false"
-                        style="flex:1;padding:5px 2px;background:#22222a;color:#aaa;border:1px solid #444;border-radius:4px;cursor:pointer;">Stats</button>
                     <button type="button" role="tab" data-tab="logs" aria-selected="false"
                         style="flex:1;padding:5px 2px;background:#22222a;color:#aaa;border:1px solid #444;border-radius:4px;cursor:pointer;">Logs</button>
                     <button type="button" role="tab" data-tab="settings" aria-selected="false"
@@ -60,8 +58,21 @@
 
                 <div role="tabpanel" data-tab-panel="character">
                     <div class="lam-section lam-character" style="${sectionStyle('#c8a24e')}">
-                        <div style="font-weight:700;margin-bottom:8px;color:#e6c77a;">Hero</div>
+                        <div style="font-weight:700;margin-bottom:8px;color:#e6c77a;">Geral</div>
                         <div id="character-summary" class="lam-character-summary">Aguardando sincronização do jogo</div>
+                        <div class="lam-hero-status">
+                            <div>HP: <strong id="character-hp">–</strong></div>
+                            <div>SP: <strong id="character-sp">–</strong></div>
+                            <div>EXP base: <strong id="character-base-exp">–</strong></div>
+                            <div>Mapa: <strong id="character-map">–</strong></div>
+                        </div>
+                        <div class="lam-hero-metrics">
+                            <div>XP por hora: <strong id="metrics-xp-hour">Aguardando dados</strong></div>
+                            <div style="${rowStyle};margin-top:8px;">
+                                <span>Tempo:</span><strong id="metrics-elapsed">00:00:00</strong>
+                                <button id="metrics-reset" type="button" style="padding:3px 7px;">Resetar</button>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -138,23 +149,16 @@
                     </div>
                 </div>
 
-                <div role="tabpanel" data-tab-panel="metrics" hidden>
-                    <div class="lam-section lam-metrics" style="${sectionStyle('#58b368')}">
-                        <div style="font-weight:700;margin-bottom:8px;color:#58b368;">Experiência</div>
-                        <div>XP por hora: <strong id="metrics-xp-hour">Aguardando dados</strong></div>
-                        <div>EXP base: <strong id="metrics-base-exp">–</strong></div>
-                        <div style="${rowStyle};margin-top:8px;">
-                            <span>Tempo:</span><strong id="metrics-elapsed">00:00:00</strong>
-                            <button id="metrics-reset" type="button" style="padding:3px 7px;">Resetar</button>
-                        </div>
-                    </div>
-                </div>
-
                 <div role="tabpanel" data-tab-panel="logs" hidden>
                     <div class="lam-section lam-logs" style="${sectionStyle('#8b9bb4')}">
                         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
                             <span style="font-weight:700;color:#c5d0df;">WebSocket</span>
                             <button id="websocket-logs-clear" type="button" style="padding:3px 7px;">Limpar</button>
+                        </div>
+                        <div style="${rowStyle};margin-bottom:8px;">
+                            <input type="checkbox" id="websocket-logs-enabled"
+                                ${state.settings.logsEnabled ? 'checked' : ''}>
+                            <label for="websocket-logs-enabled">Extrair logs WebSocket</label>
                         </div>
                         <div id="websocket-logs" class="lam-log-list">Aguardando mensagens</div>
                     </div>
@@ -187,9 +191,13 @@
                                 min="200" max="1000" step="50" style="${inputStyle}">
                             <span>ms</span>
                         </div>
+                        <div style="${rowStyle};margin-top:8px;">
+                            <input type="checkbox" id="settings-lite-mode"
+                                ${state.settings.liteMode ? 'checked' : ''}>
+                            <label for="settings-lite-mode">Lite mode</label>
+                        </div>
                     </div>
                 </div>
-                <div id="larp-status" class="lam-status">HP: – / SP: –</div>
                 <div id="larp-connection-status" class="lam-connection" role="status">
                     <span class="lam-connection-dot"></span>Aguardando conexão com o jogo
                 </div>
@@ -321,6 +329,9 @@
             core.restartInterval();
             core.saveSettings();
         });
+        panel.querySelector('#settings-lite-mode').addEventListener('change', event => {
+            core.setLiteMode(event.target.checked);
+        });
     };
 
     const wireAutohunt = (panel) => {
@@ -355,6 +366,10 @@
     };
 
     const wireLogs = (panel) => {
+        panel.querySelector('#websocket-logs-enabled').addEventListener('change', event => {
+            core.setWebSocketLogging(event.target.checked);
+            refreshGameData(panel);
+        });
         panel.querySelector('#websocket-logs-clear').addEventListener('click', () => {
             state.logs.length = 0;
             refreshGameData(panel);
@@ -385,10 +400,6 @@
         };
 
         setInterval(() => {
-            const hp = state.player.hp;
-            const sp = state.player.sp;
-            const status = document.getElementById('larp-status');
-            if (status) status.textContent = `HP: ${hp ?? '–'} / SP: ${sp ?? '–'}`;
             refreshPotionDetails();
             const panel = document.getElementById('larp-automate-v2-panel');
             if (panel) refreshGameData(panel);
@@ -427,6 +438,21 @@
                 ? `${player.name}\nClasse: ${formatJob(player.job)}\nNível base: ${formatNumber(player.baseLevel)} · Nível de classe: ${formatNumber(player.jobLevel)}`
                 : 'Aguardando sincronização do jogo';
         }
+        const characterStatus = [
+            ['#character-hp', player.hp],
+            ['#character-sp', player.sp],
+            ['#character-base-exp', player.baseExp]
+        ];
+        characterStatus.forEach(([selector, value]) => {
+            const element = panel.querySelector(selector);
+            if (element) element.textContent = formatNumber(value);
+        });
+        const characterMap = panel.querySelector('#character-map');
+        if (characterMap) {
+            characterMap.textContent = player.map
+                ? (config.mapNames[player.map] || player.map)
+                : '–';
+        }
 
         const xpPerHour = panel.querySelector('#metrics-xp-hour');
         if (xpPerHour) {
@@ -434,8 +460,6 @@
                 ? 'Calculando...'
                 : `${formatNumber(metrics.xpPerHour)} XP`;
         }
-        const baseExp = panel.querySelector('#metrics-base-exp');
-        if (baseExp) baseExp.textContent = formatNumber(player.baseExp);
         const elapsed = panel.querySelector('#metrics-elapsed');
         if (elapsed) {
             const elapsedSeconds = Math.floor((Date.now() - metrics.startedAt) / 1000);
@@ -475,6 +499,14 @@
 
         const logList = panel.querySelector('#websocket-logs');
         if (logList) {
+            if (!state.settings.logsEnabled) {
+                if (logList.dataset.signature !== 'disabled') {
+                    logList.dataset.signature = 'disabled';
+                    logList.replaceChildren();
+                    logList.textContent = 'Extração de logs desativada';
+                }
+                return;
+            }
             const lastLog = logs[logs.length - 1];
             const logSignature = `${logs.length}:${lastLog?.id ?? ''}`;
             if (logList.dataset.signature !== logSignature) {
