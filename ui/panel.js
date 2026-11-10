@@ -6,6 +6,17 @@
 
     const { config, state } = core;
 
+    const menuIcons = {
+        house: '<path d="M219.31 108.68l-80-80a16 16 0 0 0-22.62 0l-80 80A15.87 15.87 0 0 0 32 120v96a8 8 0 0 0 8 8h64a8 8 0 0 0 8-8v-56h32v56a8 8 0 0 0 8 8h64a8 8 0 0 0 8-8v-96a15.87 15.87 0 0 0-4.69-11.32ZM208 208h-48v-56a8 8 0 0 0-8-8h-48a8 8 0 0 0-8 8v56H48v-88l80-80 80 80Z"/>',
+        heart: '<path d="M178 40c-20.65 0-38.73 8.88-50 23.89C116.73 48.88 98.65 40 78 40a62.07 62.07 0 0 0-62 62c0 70 103.79 126.66 108.21 129a8 8 0 0 0 7.58 0C136.21 228.66 240 172 240 102a62.07 62.07 0 0 0-62-62ZM128 214.8C109.74 204.16 32 155.69 32 102a46.06 46.06 0 0 1 46-46c19.45 0 35.78 10.36 42.6 27a8 8 0 0 0 14.8 0c6.82-16.67 23.15-27 42.6-27a46.06 46.06 0 0 1 46 46c0 53.61-77.76 102.15-96 112.8Z"/>',
+        storefront: '<path d="M232 96a7.89 7.89 0 0 0-.3-2.2L217.35 43.6A16.07 16.07 0 0 0 202 32H54a16.07 16.07 0 0 0-15.35 11.6L24.31 93.8A7.89 7.89 0 0 0 24 96v16a40 40 0 0 0 16 32v72a8 8 0 0 0 8 8h160a8 8 0 0 0 8-8v-72a40 40 0 0 0 16-32ZM54 48h148l11.42 40H42.61ZM104 104h48v8a24 24 0 0 1-48 0Zm-16 0v8a24 24 0 0 1-35.12 21.26 7.88 7.88 0 0 0-1.82-1.06A24 24 0 0 1 40 112v-8Zm112 104H56v-56.8a40.57 40.57 0 0 0 8 .8 40 40 0 0 0 32-16 40 40 0 0 0 64 0 40 40 0 0 0 32 16 40.57 40.57 0 0 0 8-.8Zm4.93-75.8a8.08 8.08 0 0 0-1.8 1.05A24 24 0 0 1 168 112v-8h48v8a24 24 0 0 1-11.07 20.2Z"/>',
+        sword: '<path d="M216 32h-64a8 8 0 0 0-6.34 3.12l-64 83.21L72 108.69a16 16 0 0 0-22.64 0l-12.69 12.7a16 16 0 0 0 0 22.63l20 20-28 28a16 16 0 0 0 0 22.63l12.69 12.68a16 16 0 0 0 22.62 0l28-28 20 20a16 16 0 0 0 22.64 0l12.69-12.7a16 16 0 0 0 0-22.63l-9.64-9.64 83.21-64A8 8 0 0 0 224 104V40a8 8 0 0 0-8-8ZM52.69 216 40 203.32l28-28L80.68 188Zm70.61-8L48 132.71 60.7 120 136 195.31ZM208 100.06l-81.74 62.88L115.32 152l50.34-50.34a8 8 0 0 0-11.32-11.31L104 140.68l-10.93-10.94L155.94 48H208Z"/>',
+        binary: '<path d="M94 24C71.63 24 56 43.74 56 72s15.63 48 38 48 38-19.74 38-48-15.63-48-38-48Zm0 80c-17.37 0-22-20.11-22-32s4.63-32 22-32 22 20.11 22 32-4.63 32-22 32Zm72 32c-22.37 0-38 19.74-38 48s15.63 48 38 48 38-19.74 38-48-15.63-48-38-48Zm0 80c-17.37 0-22-20.11-22-32s4.63-32 22-32 22 20.11 22 32-4.63 32-22 32Zm-21-166.78a8 8 0 0 1 3.11-10.88l24-13.33A8 8 0 0 1 184 32v80a8 8 0 0 1-16 0V45.6l-12.12 6.73A8 8 0 0 1 145 49.22ZM104 144v80a8 8 0 0 1-16 0v-66.4l-12.12 6.73a8 8 0 0 1-7.76-14l24-13.33A8 8 0 0 1 104 144Z"/>'
+    };
+
+    const buildMenuIcon = (name) =>
+        `<svg class="lam-menu-icon" viewBox="0 0 256 256" aria-hidden="true">${menuIcons[name]}</svg>`;
+
     const buildPotionTypeOptions = (selected, type) => config.shops.potionTypes[type].map(potion =>
         `<option value="${potion}" ${potion === selected ? 'selected' : ''}>${config.shops.potionNames[potion]}</option>`
     ).join('');
@@ -39,21 +50,22 @@
             </div>
             <div id="larp-panel-content">
                 <div role="tablist" aria-label="Seções da macro"
-                    style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px;border-bottom:1px solid #444;padding-bottom:6px;">
-                    <button type="button" role="tab" data-tab="character" aria-selected="true"
-                        style="flex:1;padding:5px 2px;background:#3a3a46;color:#ffd700;border:1px solid #555;border-radius:4px;cursor:pointer;">Geral</button>
-                    <button type="button" role="tab" data-tab="autopot" aria-selected="false"
-                        style="flex:1;padding:5px 2px;background:#22222a;color:#aaa;border:1px solid #444;border-radius:4px;cursor:pointer;">Healer</button>
-                    <button type="button" role="tab" data-tab="autorefiller" aria-selected="false"
-                        style="flex:1;padding:5px 2px;background:#22222a;color:#aaa;border:1px solid #444;border-radius:4px;cursor:pointer;">Refiller</button>
-                    <button type="button" role="tab" data-tab="autohunt" aria-selected="false"
-                        style="flex:1;padding:5px 2px;background:#22222a;color:#aaa;border:1px solid #444;border-radius:4px;cursor:pointer;">Hunt</button>
-                    <button type="button" role="tab" data-tab="fastskill" aria-selected="false"
-                        style="flex:1;padding:5px 2px;background:#22222a;color:#aaa;border:1px solid #444;border-radius:4px;cursor:pointer;">Fast Skill</button>
-                    <button type="button" role="tab" data-tab="logs" aria-selected="false"
-                        style="flex:1;padding:5px 2px;background:#22222a;color:#aaa;border:1px solid #444;border-radius:4px;cursor:pointer;">Logs</button>
-                    <button type="button" role="tab" data-tab="settings" aria-selected="false"
-                        style="flex:1;padding:5px 2px;background:#22222a;color:#aaa;border:1px solid #444;border-radius:4px;cursor:pointer;">Config</button>
+                    class="lam-tablist">
+                    <button type="button" role="tab" data-tab="character" aria-label="Geral" title="Geral" aria-selected="true">
+                        ${buildMenuIcon('house')}
+                    </button>
+                    <button type="button" role="tab" data-tab="autopot" aria-label="Heal" title="Heal" aria-selected="false">
+                        ${buildMenuIcon('heart')}
+                    </button>
+                    <button type="button" role="tab" data-tab="autorefiller" aria-label="Refill" title="Refill" aria-selected="false">
+                        ${buildMenuIcon('storefront')}
+                    </button>
+                    <button type="button" role="tab" data-tab="autohunt" aria-label="Hunt" title="Hunt" aria-selected="false">
+                        ${buildMenuIcon('sword')}
+                    </button>
+                    <button type="button" role="tab" data-tab="logs" aria-label="Logs" title="Logs" aria-selected="false">
+                        ${buildMenuIcon('binary')}
+                    </button>
                 </div>
 
                 <div role="tabpanel" data-tab-panel="character">
@@ -147,6 +159,18 @@
                             Retorna ao mapa automaticamente
                         </div>
                     </div>
+                    <div class="lam-section lam-action" style="${sectionStyle('#e6a23c')}">
+                        <div style="font-weight:700;margin-bottom:8px;color:#e6a23c;">Fast Skill</div>
+                        <div style="${rowStyle}">
+                            <span>Intervalo:</span>
+                            <input type="number" id="fastskill-interval" value="${state.fastSkill.intervalMs}"
+                                min="100" max="10000" step="50" style="${inputStyle}">
+                            <span>ms</span>
+                        </div>
+                        <div id="fastskill-options" class="lam-fastskill-options">
+                            Aguardando sincronização do jogo
+                        </div>
+                    </div>
                 </div>
 
                 <div role="tabpanel" data-tab-panel="logs" hidden>
@@ -163,41 +187,12 @@
                         <div id="websocket-logs" class="lam-log-list">Aguardando mensagens</div>
                     </div>
                 </div>
-
-                <div role="tabpanel" data-tab-panel="fastskill" hidden>
-                    <div class="lam-section lam-action" style="${sectionStyle('#e6a23c')}">
-                        <div style="font-weight:700;margin-bottom:8px;color:#e6a23c;">Fast Skill</div>
-                        <div style="${rowStyle}">
-                            <span>Intervalo:</span>
-                            <input type="number" id="fastskill-interval" value="${state.fastSkill.intervalMs}"
-                                min="100" max="10000" step="50" style="${inputStyle}">
-                            <span>ms</span>
-                        </div>
-                        <div style="font-size:10px;color:#aaa;margin-bottom:6px;">
-                            Skills aprendidas e marcadas como automáticas na hotbar:
-                        </div>
-                        <div id="fastskill-options" class="lam-fastskill-options">
-                            Aguardando sincronização do jogo
-                        </div>
-                    </div>
-                </div>
-
-                <div role="tabpanel" data-tab-panel="settings" hidden>
-                    <div class="lam-section lam-settings" style="${sectionStyle('#666')}">
-                        <div style="font-weight:700;margin-bottom:8px;color:#aaa;">Config</div>
-                        <div style="${rowStyle}">
-                            <span>Rate:</span>
-                            <input type="number" id="settings-rate" value="${state.settings.checkMs}"
-                                min="200" max="1000" step="50" style="${inputStyle}">
-                            <span>ms</span>
-                        </div>
-                        <div style="${rowStyle};margin-top:8px;">
-                            <input type="checkbox" id="settings-lite-mode"
-                                ${state.settings.liteMode ? 'checked' : ''}>
-                            <label for="settings-lite-mode">Lite mode</label>
-                        </div>
-                    </div>
-                </div>
+            </div>
+            <div class="lam-footer">
+                <label class="lam-lite-toggle" for="settings-lite-mode">
+                    <input type="checkbox" id="settings-lite-mode" ${state.settings.liteMode ? 'checked' : ''}>
+                    <span>Lite mode</span>
+                </label>
                 <div id="larp-connection-status" class="lam-connection" role="status">
                     <span class="lam-connection-dot"></span>Aguardando conexão com o jogo
                 </div>
@@ -209,7 +204,7 @@
         wireMinimize(panel);
         wireAutopot(panel);
         wireAutorefiller(panel);
-        wireSettings(panel);
+        wireLiteMode(panel);
         wireAutohunt(panel);
         wireFastSkill(panel);
         wireLogs(panel);
@@ -239,6 +234,7 @@
             const content = panel.querySelector('#larp-panel-content');
             const minimized = !content.hidden;
             content.hidden = minimized;
+            panel.querySelector('.lam-footer').hidden = minimized;
             panel.classList.toggle('lam-minimized', minimized);
             event.currentTarget.textContent = minimized ? '+' : '−';
             event.currentTarget.setAttribute('aria-label', minimized ? 'Expandir painel' : 'Minimizar painel');
@@ -319,16 +315,7 @@
         });
     };
 
-    const wireSettings = (panel) => {
-        panel.querySelector('#settings-rate').addEventListener('change', event => {
-            let value = parseInt(event.target.value, 10);
-            if (Number.isNaN(value)) value = 500;
-            value = Math.max(200, Math.min(1000, value));
-            state.settings.checkMs = value;
-            event.target.value = value;
-            core.restartInterval();
-            core.saveSettings();
-        });
+    const wireLiteMode = (panel) => {
         panel.querySelector('#settings-lite-mode').addEventListener('change', event => {
             core.setLiteMode(event.target.checked);
         });
@@ -503,7 +490,6 @@
                 if (logList.dataset.signature !== 'disabled') {
                     logList.dataset.signature = 'disabled';
                     logList.replaceChildren();
-                    logList.textContent = 'Extração de logs desativada';
                 }
                 return;
             }

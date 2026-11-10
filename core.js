@@ -8,6 +8,7 @@
     const PAGE_STORAGE_KEY = 'larpAutomateV2Settings';
     const SETTINGS_SCHEMA_VERSION = 1;
     const BRIDGE_CHANNEL = 'larp-automate-v2';
+    const CHECK_INTERVAL_MS = 200;
     const SAVE_DEBOUNCE_MS = 750;
     const REFILL_TIMING = {
         preparationMs: [800, 1600],
@@ -35,7 +36,6 @@
             lastAction: 0
         },
         settings: {
-            checkMs: 500,
             hpPotionType: 'potion-red',
             spPotionType: 'potion-blue',
             liteMode: false,
@@ -193,7 +193,6 @@
             spMaxToBuy: state.autorefiller.spMaxToBuy
         },
         settings: {
-            checkMs: state.settings.checkMs,
             hpPotionType: state.settings.hpPotionType,
             spPotionType: state.settings.spPotionType,
             liteMode: state.settings.liteMode,
@@ -350,9 +349,6 @@
             migratedSettings = true;
         }
 
-        if (Number.isFinite(stored.settings?.checkMs)) {
-            state.settings.checkMs = Math.max(200, Math.min(1000, stored.settings.checkMs));
-        }
         if (config.shops.potionTypes.hp.includes(stored.settings?.hpPotionType)) {
             state.settings.hpPotionType = stored.settings.hpPotionType;
         }
@@ -940,8 +936,8 @@
 
     const restartInterval = () => {
         if (state.intervalId) clearInterval(state.intervalId);
-        state.intervalId = setInterval(check, state.settings.checkMs);
-        log(`Check rate: ${state.settings.checkMs}ms`);
+        state.intervalId = setInterval(check, CHECK_INTERVAL_MS);
+        log(`Check rate: ${CHECK_INTERVAL_MS}ms`);
     };
 
     const start = (buildUI) => {

@@ -14,7 +14,15 @@
     ]);
     let potionInventory = [];
     let inventoryReady = false;
-    let loggingEnabled = false;
+    let loggingEnabled = (() => {
+        try {
+            const stored = JSON.parse(window.localStorage.getItem('larpAutomateV2Settings') || 'null');
+            return stored?.settings?.settings?.logsEnabled !== false;
+        } catch (error) {
+            console.error('[Larp Automate V2] Could not read initial log setting', error);
+            return true;
+        }
+    })();
     const MAPS = new Set([
         'clover_meadow',
         'whisper_woods',

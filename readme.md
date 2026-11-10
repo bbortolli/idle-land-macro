@@ -92,10 +92,11 @@ larp-automate-v2/
 - Viaja diretamente com `setMap`; `puffton` não aparece na lista por ser a Vila
 - Os mapas são exibidos em português: Campos do Trevo, Bosque dos Sussurros, Lagoa do Orvalho, Caverna Cintilante, Colina do Mel, Pântano da Névoa, Pico Gélido, Ruínas Submersas, Vulcão de Brasa, Torre Celeste, Jardim Lunar, Abismo Estelar, Santuário Cristalino, Profundezas de Coral, Planalto dos Trovões, Deserto de Ossos, Forja de Obsidiana, Geleira Eterna, Pântano do Espelho, Cidadela de Engrenagens, Bosque dos Sonhos, Coroa Solar e Núcleo da Origem
 
-### 4. Settings
-- Taxa de verificação: 200–1000 ms (padrão 500, com limite automático)
-- Lite mode oculta `section#screen-game` e restaura seu estilo original ao desativar; a opção fica salva junto às demais configurações
-- Seleciona o tipo de poção para HP e SP na aba Poções; o Autopot usa o WebSocket e não depende da hotbar
+### 4. Interface e controles
+- A navegação usa somente ícones Phosphor para Geral, Heal, Refill, Hunt e Logs; os SVGs ficam embutidos e não carregam recursos externos
+- O rate de verificação é fixo em 200 ms; atrasos humanizados de compra e refill continuam independentes
+- Lite mode fica no rodapé fixo do painel, oculta `section#screen-game` e restaura seu estilo original ao desativar
+- Seleciona o tipo de poção para HP e SP na aba Heal; o Autopot usa o WebSocket e não depende da hotbar
 - O Autorefiller usa `player.inventory` recebido no estado do jogo para localizar os UIDs e as quantidades das poções
 - Os nomes exibidos para as poções correspondem aos nomes apresentados na loja do jogo
 
@@ -106,11 +107,13 @@ larp-automate-v2/
 
 ### 6. Logs
 - A extração pode ser ligada/desligada pelo checkbox da aba Logs; desativada, o relay deixa de analisar e encaminhar os tipos das mensagens para o painel
+- A navegação da aba Logs não exibe texto de estado ativo/inativo; o checkbox indica a opção
 - Exibe os tipos das mensagens WebSocket enviadas e recebidas, sem guardar ou exibir o conteúdo completo
 - Exemplo: `ENVIADO - cast` e `RECEBIDO - Sync`
 - Mantém no máximo 100 eventos em memória e permite limpar a lista
 
-### 7. Fastkill
+### 7. Fast Skill
+- As opções de Fast Skill estão dentro da aba Hunt
 - Lista skills aprendidas e marcadas como automáticas em `player.settings.hotbar`
 - Permite selecionar skills para uso repetido e configurar o intervalo de 100 a 10000 ms
 - Envia ações WebSocket como `{"type":"cast","skill":"backstab"}` e `{"type":"cast","skill":"shadow_step"}`
@@ -119,7 +122,7 @@ larp-automate-v2/
 - O painel usa as cores, fontes e molduras escuras/douradas observadas na página do jogo (Barlow, Cinzel, azul-marinho e dourado)
 - UI fixa à direita: painel `#larp-automate-v2-panel` com `z-index: 2147483647`
 - Ações de poção e refill usam estado e comandos WebSocket, sem consultar ou clicar em elementos do HUD, hotbar ou loja
-- Clamp de valores: rate forçado entre 200–1000ms mesmo se usuário digitar fora
+- Verificação do ciclo fixada em 200 ms; intervalos humanizados das compras permanecem configuráveis pelo código
 - A extensão usa um relay no mundo principal (`ws-bridge.js`) porque o content script isolado não acessa `window.fv`
 - O relay valida ações e envia JSON por `window.fv.net.ws`; `useItem` usa o UID atualizado a partir do inventário filtrado
 - O relay observa mensagens WebSocket do jogo, encaminhando dados de personagem, HP/SP e inventário filtrado; a extração de tipos para logs é opcional
@@ -127,6 +130,7 @@ larp-automate-v2/
 - `config/game.js` centraliza os tipos de poção, quantidades de compra e mapas
 - Os scripts do content script são declarados no `manifest.json`; o relay roda no mundo principal desde `document_start`
 - Logs com prefixo `[Larp Automate V2]`
+- Ícones Phosphor Icons Regular incorporados ao menu; licença MIT e aviso de copyright em [PHOSPHOR-LICENSE](./PHOSPHOR-LICENSE)
 
 ## Persistência das Configurações
 - As opções são gravadas imediatamente em uma chave própria do `localStorage` do site, além de `chrome.storage.local`; também são sincronizadas com debounce para `chrome.storage.sync`.

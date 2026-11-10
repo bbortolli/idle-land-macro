@@ -82,20 +82,37 @@
     font: 700 16px/1 Cinzel, Barlow, "Segoe UI", serif !important;
 }
 
-#larp-automate-v2-panel [role="tablist"] {
-    gap: 5px !important;
+#larp-automate-v2-panel .lam-tablist {
+    display: grid !important;
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+    gap: 6px !important;
     margin: 10px 0 12px !important;
     padding-bottom: 9px !important;
     border-bottom: 1px solid rgba(200, 162, 78, 0.38) !important;
 }
 
 #larp-automate-v2-panel button[role="tab"] {
-    min-height: 31px !important;
-    padding: 5px 7px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    min-width: 0 !important;
+    min-height: 36px !important;
+    padding: 5px !important;
     color: #aab4c2 !important;
     background: rgba(15, 23, 35, 0.82) !important;
     border: 1px solid rgba(133, 151, 174, 0.23) !important;
-    font-size: 11px !important;
+}
+
+#larp-automate-v2-panel .lam-menu-icon {
+    display: block !important;
+    width: 21px !important;
+    height: 21px !important;
+    fill: currentColor !important;
+}
+
+#larp-automate-v2-panel button[role="tab"]:focus-visible {
+    outline: 2px solid #e5c779 !important;
+    outline-offset: 2px !important;
 }
 
 #larp-automate-v2-panel button[role="tab"][aria-selected="true"] {
@@ -153,13 +170,21 @@
     color: #e9e2d0 !important;
 }
 
-#larp-automate-v2-panel .lam-status {
-    padding-top: 9px !important;
-    color: #e9e2d0 !important;
+#larp-automate-v2-panel .lam-footer {
+    flex: 0 0 auto !important;
+    margin-top: 8px !important;
+    padding-top: 8px !important;
     border-top: 1px solid rgba(200, 162, 78, 0.35) !important;
-    text-align: center !important;
-    font-size: 12px !important;
-    font-weight: 600 !important;
+}
+
+#larp-automate-v2-panel .lam-lite-toggle {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 7px !important;
+    color: #e9e2d0 !important;
+    font-size: 11px !important;
+    cursor: pointer !important;
 }
 
 #larp-automate-v2-panel .lam-connection {
@@ -167,7 +192,7 @@
     align-items: center !important;
     justify-content: center !important;
     gap: 6px !important;
-    margin-top: 4px !important;
+    margin-top: 6px !important;
     color: #aab4c2 !important;
     font-size: 10px !important;
 }
